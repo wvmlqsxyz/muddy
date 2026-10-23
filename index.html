@@ -1,0 +1,886 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<style>:root{padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px);box-sizing:border-box;height:100%}body{margin:0;font:14px system-ui,sans-serif}</style>
+</head>
+<body>
+<title>Muddy 프로토타입</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Do+Hyeon&family=Gowun+Dodum&display=swap">
+<style>
+/* Layout: one-screen portrait app. Lobby with bottom 5-tab bar; battle = header + canvas war-table + skill bar. Single deliberate look (war table at dusk), no light/dark switch. */
+:root{
+  --table:#24302b;      /* war-table felt */
+  --table-2:#2e3c35;
+  --panel:#18201d;
+  --line:#3d4d45;
+  --ink:#ece5cf;        /* parchment text */
+  --ink-dim:#a9a58f;
+  --gold:#e0b04a;
+  --p1:#4a90d9;         /* player: azure banner */
+  --p2:#d2513f;         /* red AI */
+  --p3:#d9a62e;         /* amber AI */
+  --p0:#8b9086;         /* neutral */
+  --ok:#6fbf73;
+  --font-display:"Do Hyeon","Apple SD Gothic Neo","Malgun Gothic",sans-serif;
+  --font-body:"Gowun Dodum","Apple SD Gothic Neo","Malgun Gothic",system-ui,sans-serif;
+  color-scheme:dark;
+}
+[hidden]{display:none!important}
+html,body{height:100%}
+body{background:var(--panel);color:var(--ink);font-family:var(--font-body);overflow:hidden;-webkit-tap-highlight-color:transparent;user-select:none;-webkit-user-select:none}
+button{font-family:inherit;color:inherit;cursor:pointer;border:0;background:none}
+button:focus-visible{outline:2px solid var(--gold);outline-offset:2px}
+#app{position:relative;height:100%;max-width:520px;margin:0 auto;display:flex;flex-direction:column;background:var(--table)}
+.screen{position:absolute;inset:0;display:flex;flex-direction:column}
+.gutter{padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px))}
+
+/* ---------- lobby ---------- */
+.topbar{display:flex;align-items:center;gap:10px;padding-block:10px;background:var(--panel);border-bottom:1px solid var(--line)}
+.avatar{width:38px;height:38px;border-radius:50%;background:var(--p1);display:grid;place-items:center;font-family:var(--font-display);font-size:20px;flex:none}
+.who{display:flex;flex-direction:column;line-height:1.15;min-width:0}
+.who b{font-family:var(--font-display);font-weight:400;font-size:17px}
+.who small{color:var(--ink-dim);font-size:12px}
+.wallet{margin-left:auto;display:flex;gap:6px;flex-wrap:wrap;justify-content:flex-end}
+.chip{display:flex;align-items:center;gap:5px;background:var(--table);border:1px solid var(--line);border-radius:999px;padding:3px 9px 3px 5px;font-size:13px;font-variant-numeric:tabular-nums}
+.chip i{width:14px;height:14px;border-radius:50%;display:inline-block}
+.tabbody{flex:1;overflow-y:auto;padding-block:16px;display:flex;flex-direction:column;gap:14px}
+.tabbody>*{flex:none}
+.eyebrow{font-size:12px;letter-spacing:.08em;color:var(--ink-dim)}
+h1,h2{font-family:var(--font-display);font-weight:400;margin:0;text-wrap:balance}
+h1{font-size:28px;line-height:1.1}
+h2{font-size:20px}
+.province{position:relative;border:1px solid var(--line);border-radius:14px;background:var(--table-2);overflow:hidden}
+.province canvas{display:block;width:100%;height:auto;aspect-ratio:360/300;max-width:100%}
+.citylist{display:flex;flex-direction:column;gap:8px}
+.city{display:flex;align-items:center;gap:12px;padding:10px 12px;border:1px solid var(--line);border-radius:12px;background:var(--panel);text-align:left;width:100%}
+.city[aria-pressed="true"]{border-color:var(--gold);box-shadow:inset 0 0 0 1px var(--gold)}
+.city:disabled{opacity:.45;cursor:not-allowed}
+.city .num{width:30px;height:30px;border-radius:8px;display:grid;place-items:center;background:var(--table);font-family:var(--font-display);font-size:17px;flex:none}
+.city .meta{display:flex;flex-direction:column;min-width:0;gap:2px}
+.city .meta b{font-weight:400;font-family:var(--font-display);font-size:17px}
+.city .meta small{color:var(--ink-dim);font-size:12px}
+.city .state{margin-left:auto;font-size:12px;color:var(--ink-dim);flex:none}
+.city .state.done{color:var(--ok)}
+.cta{display:block;width:100%;padding:16px;border-radius:14px;background:var(--gold);color:#2a1f08;font-family:var(--font-display);font-size:24px;box-shadow:0 4px 0 #9b7524}
+.cta:active{transform:translateY(3px);box-shadow:0 1px 0 #9b7524}
+.mock{font-size:12px;color:var(--ink-dim);border:1px dashed var(--line);border-radius:10px;padding:8px 10px}
+.cards{display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:10px}
+.card{border:1px solid var(--line);border-radius:12px;background:var(--panel);padding:12px;display:flex;flex-direction:column;gap:6px;min-width:0}
+.card b{font-family:var(--font-display);font-weight:400;font-size:17px}
+.card small{color:var(--ink-dim);font-size:12px;line-height:1.4}
+.slots{display:grid;grid-template-columns:repeat(3,1fr);gap:8px}
+.slot{border:1px solid var(--line);border-radius:10px;padding:10px 6px;text-align:center;background:var(--panel);font-size:13px;display:flex;flex-direction:column;gap:4px;align-items:center}
+.slot.locked{opacity:.45}
+.slot .glyph{width:26px;height:26px}
+.tabbar{display:grid;grid-template-columns:repeat(5,1fr);background:var(--panel);border-top:1px solid var(--line);padding-bottom:env(safe-area-inset-bottom,0px)}
+.tab{display:flex;flex-direction:column;align-items:center;gap:3px;padding:8px 0 10px;font-size:12px;color:var(--ink-dim)}
+.tab svg{width:24px;height:24px}
+.tab[aria-selected="true"]{color:var(--gold)}
+.tab.center{position:relative}
+.tab.center svg{width:30px;height:30px}
+
+/* ---------- battle ---------- */
+.bhead{display:flex;align-items:center;gap:10px;padding-block:8px;background:var(--panel)}
+.bhead .title{display:flex;flex-direction:column;line-height:1.1;min-width:0;flex:1}
+.bhead .title b{font-family:var(--font-display);font-weight:400;font-size:18px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.bhead .title small{color:var(--ink-dim);font-size:12px;font-variant-numeric:tabular-nums}
+.iconbtn{min-width:40px;height:36px;padding:0 10px;border-radius:10px;background:var(--table);border:1px solid var(--line);font-size:13px}
+.power{display:flex;height:6px;background:var(--panel)}
+.power span{display:block;height:100%;transition:width .4s}
+.boardwrap{position:relative;flex:1;min-height:0}
+#board{position:absolute;inset:0;width:100%;height:100%;touch-action:none;display:block}
+.bfoot{display:flex;align-items:center;gap:12px;padding-block:10px;background:var(--panel);padding-bottom:max(10px,env(safe-area-inset-bottom,0px))}
+.skill{position:relative;width:64px;height:64px;border-radius:16px;background:var(--table);border:2px solid var(--gold);display:grid;place-items:center;overflow:hidden;flex:none}
+.skill:disabled{border-color:var(--line);cursor:default}
+.skill .cd{position:absolute;inset:auto 0 0 0;background:rgba(0,0,0,.55);height:0}
+.skill .lbl{position:relative;font-family:var(--font-display);font-size:14px;line-height:1.05;text-align:center}
+.heroinfo{display:flex;flex-direction:column;gap:5px;min-width:0;flex:1}
+.heroinfo b{font-family:var(--font-display);font-weight:400;font-size:16px}
+.hpbar{height:7px;border-radius:4px;background:var(--table);overflow:hidden}
+.hpbar span{display:block;height:100%;background:var(--ok);width:100%}
+.heroinfo small{color:var(--ink-dim);font-size:12px}
+.speed{flex:none}
+.toast{position:absolute;left:50%;top:12px;transform:translateX(-50%);background:rgba(16,22,20,.92);border:1px solid var(--line);border-radius:12px;padding:9px 14px;font-size:13px;line-height:1.45;max-width:calc(100% - 32px);text-align:center;pointer-events:none;transition:opacity .4s}
+.toast.hide{opacity:0}
+
+/* tuning panel */
+.sheet{position:absolute;inset:auto 0 0 0;max-height:75%;overflow-y:auto;background:var(--panel);border-top:1px solid var(--line);border-radius:16px 16px 0 0;padding-block:14px;padding-bottom:max(14px,env(safe-area-inset-bottom,0px));z-index:5;display:flex;flex-direction:column;gap:10px}
+.sheet .row{display:grid;grid-template-columns:110px 1fr 44px;gap:10px;align-items:center;font-size:13px}
+.sheet .row output{text-align:right;font-variant-numeric:tabular-nums}
+.sheet input[type=range]{width:100%;accent-color:var(--gold)}
+.sheet .head{display:flex;align-items:center;justify-content:space-between}
+
+/* result */
+.overlay{position:absolute;inset:0;background:rgba(10,14,12,.78);display:grid;place-items:center;z-index:6;padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px))}
+.result{width:100%;max-width:360px;background:var(--panel);border:1px solid var(--line);border-radius:18px;padding:22px 18px;display:flex;flex-direction:column;gap:14px;text-align:center}
+.result h1{font-size:40px}
+.result h1.win{color:var(--gold)}
+.result h1.lose{color:var(--p2)}
+.stats{display:grid;grid-template-columns:repeat(3,1fr);gap:8px}
+.stats div{background:var(--table);border-radius:10px;padding:8px 4px;display:flex;flex-direction:column;gap:2px}
+.stats b{font-family:var(--font-display);font-weight:400;font-size:20px;font-variant-numeric:tabular-nums}
+.stats small{font-size:11px;color:var(--ink-dim)}
+.btn2{padding:12px;border-radius:12px;background:var(--table);border:1px solid var(--line);font-size:15px}
+.btnad{padding:12px;border-radius:12px;background:var(--p1);font-size:15px}
+.btnad small{display:block;font-size:11px;opacity:.8}
+@media (prefers-reduced-motion:reduce){*{transition:none!important}}
+</style>
+
+<div id="app">
+  <!-- LOBBY -->
+  <section class="screen" id="lobby">
+    <header class="topbar gutter">
+      <div class="avatar" aria-hidden="true">영</div>
+      <div class="who"><b>XYZ 영주</b><small id="lvl">Lv.1 · 아르덴 왕국</small></div>
+      <div class="wallet">
+        <span class="chip"><i style="background:var(--gold)"></i><span id="gold">0</span></span>
+        <span class="chip"><i style="background:#8fd0e6"></i>120</span>
+        <span class="chip"><i style="background:var(--ok)"></i>30/30</span>
+      </div>
+    </header>
+
+    <main class="tabbody gutter" id="tab-battle">
+      <div>
+        <div class="eyebrow">아르덴 왕국 · 제1 프로빈스</div>
+        <h1>갈대 평원</h1>
+      </div>
+      <div class="province"><canvas id="provmap" width="720" height="600"></canvas></div>
+      <div class="citylist" id="citylist"></div>
+      <button class="cta" id="start">전투 시작</button>
+      <p class="mock">프로토타입: 도시 3곳을 모두 점령하면 프로빈스를 확보합니다. 진행도는 이 브라우저에만 저장됩니다.</p>
+    </main>
+
+    <main class="tabbody gutter" id="tab-army" hidden>
+      <div><div class="eyebrow">군단</div><h1>영웅과 병종</h1></div>
+      <div class="card">
+        <b>레오 · 희귀 영웅</b>
+        <small>스킬 「돌격 함성」: 6초간 아군 전체 공격력 +2, 이동 속도 1.5배. 재사용 25초.</small>
+        <small>영웅 슬롯 1/1 · 프로빈스를 확보할 때마다 슬롯이 늘어납니다.</small>
+      </div>
+      <h2>무기 슬롯</h2>
+      <div class="slots">
+        <div class="slot locked"><svg class="glyph" viewBox="0 0 24 24"><rect x="5" y="4" width="14" height="16" rx="3" fill="none" stroke="currentColor" stroke-width="2"/></svg>탱커<small>프로빈스 2</small></div>
+        <div class="slot"><svg class="glyph" viewBox="0 0 24 24"><circle cx="12" cy="12" r="7" fill="currentColor"/></svg>근거리<small>장착</small></div>
+        <div class="slot"><svg class="glyph" viewBox="0 0 24 24"><path d="M12 3l8 9-8 9-8-9z" fill="currentColor"/></svg>원거리<small>장착</small></div>
+      </div>
+      <div class="cards">
+        <div class="card"><b>장비</b><small>공격·방어 장비 강화. 영웅 전체 공유.</small></div>
+        <div class="card"><b>도구</b><small>포탑·트랩 효율 강화.</small></div>
+        <div class="card"><b>유물</b><small>런 단위 특수 효과.</small></div>
+        <div class="card"><b>스킨</b><small>팔레트와 파츠 교체.</small></div>
+      </div>
+      <p class="mock">구조 확인용 목업입니다. 강화 기능은 버티컬 슬라이스 단계에서 만듭니다.</p>
+    </main>
+
+    <main class="tabbody gutter" id="tab-shop" hidden>
+      <div><div class="eyebrow">상점</div><h1>보급소</h1></div>
+      <div class="cards">
+        <div class="card"><b>보급 상자</b><small>광고를 보고 무료로 열기. 하루 5회.</small></div>
+        <div class="card"><b>영웅 소집</b><small>확정 구매 방식. 확률형 판매 시 확률 공개 필요.</small></div>
+        <div class="card"><b>깃발 스킨</b><small>인앱 결제.</small></div>
+        <div class="card"><b>골드 묶음</b><small>광고 보고 2배.</small></div>
+      </div>
+      <p class="mock">구조 확인용 목업입니다.</p>
+    </main>
+
+    <main class="tabbody gutter" id="tab-arena" hidden>
+      <div><div class="eyebrow">아레나</div><h1>원정 대결</h1></div>
+      <div class="card"><b>비동기 대전</b><small>다른 영주의 군단 구성을 AI가 대신 조종합니다. 실시간 서버 없이 운영할 수 있습니다.</small></div>
+      <p class="mock">본 제작 단계 예정.</p>
+    </main>
+
+    <main class="tabbody gutter" id="tab-clan" hidden>
+      <div><div class="eyebrow">클랜</div><h1>동맹</h1></div>
+      <div class="card"><b>클랜과 친구</b><small>서버(예: Firebase)가 필요합니다.</small></div>
+      <p class="mock">출시 후 예정.</p>
+    </main>
+
+    <nav class="tabbar" role="tablist" aria-label="로비 메뉴">
+      <button class="tab" role="tab" data-tab="shop"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 9h16l-1.5 11h-13z"/><path d="M8 9V6a4 4 0 0 1 8 0v3"/></svg>상점</button>
+      <button class="tab" role="tab" data-tab="army"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 3l7 3v6c0 4-3 7-7 9-4-2-7-5-7-9V6z"/></svg>군단</button>
+      <button class="tab center" role="tab" data-tab="battle" aria-selected="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M5 19L19 5M15 5h4v4M5 5l14 14M5 15v4h4"/></svg>전투</button>
+      <button class="tab" role="tab" data-tab="arena"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="8"/><circle cx="12" cy="12" r="3"/></svg>아레나</button>
+      <button class="tab" role="tab" data-tab="clan"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M6 21V4l12 4-12 4"/></svg>클랜</button>
+    </nav>
+  </section>
+
+  <!-- BATTLE -->
+  <section class="screen" id="battle" hidden>
+    <header class="bhead gutter">
+      <button class="iconbtn" id="quit">포기</button>
+      <div class="title"><b id="bname">도시</b><small id="btime">00:00</small></div>
+      <button class="iconbtn" id="tune">조정</button>
+    </header>
+    <div class="power" id="power"></div>
+    <div class="boardwrap">
+      <canvas id="board"></canvas>
+      <div class="toast" id="toast"></div>
+      <div class="sheet gutter" id="sheet" hidden>
+        <div class="head"><h2>밸런스 조정</h2><button class="iconbtn" id="sheetclose">닫기</button></div>
+        <div id="sliders"></div>
+      </div>
+    </div>
+    <footer class="bfoot gutter">
+      <button class="skill" id="skill"><div class="cd" id="skillcd"></div><div class="lbl">돌격<br>함성</div></button>
+      <div class="heroinfo">
+        <b>레오</b>
+        <div class="hpbar"><span id="herohp"></span></div>
+        <small id="herostate">베이스 주둔 중</small>
+      </div>
+      <button class="iconbtn speed" id="speed">1배속</button>
+    </footer>
+    <div class="overlay" id="result" hidden>
+      <div class="result">
+        <h1 id="rtitle">승리</h1>
+        <p id="rsub" style="margin:0;color:var(--ink-dim)"></p>
+        <div class="stats">
+          <div><b id="rtime">0:00</b><small>소요 시간</small></div>
+          <div><b id="rprod">0</b><small>생산 유닛</small></div>
+          <div><b id="rcap">0</b><small>점령 횟수</small></div>
+        </div>
+        <button class="btnad" id="rad">광고 보고 보상 2배<small>목업: 앱에서는 AdMob 보상형 광고</small></button>
+        <button class="btn2" id="rretry">다시 도전</button>
+        <button class="btn2" id="rback">로비로</button>
+      </div>
+    </div>
+  </section>
+</div>
+
+<script>
+"use strict";
+/* =========================================================
+   Config (tunable live from the 조정 sheet)
+   ========================================================= */
+const CFG = {
+  resPerMin: 60,                 // 베이스 1곳의 분당 자원
+  cost: { melee: 1, ranged: 1.5 },
+  unit: {
+    melee:  { hp: 10, atk: 4, def: 1, spd: 46 },
+    ranged: { hp: 6,  atk: 3, def: 0, spd: 42, range: 62, cd: 1.0 },
+    hero:   { hp: 60, atk: 8, def: 3, spd: 40 }
+  },
+  sendInterval: 0.32,
+  gateHold: 3,
+  turret: { range: 74, cd: 0.6 },
+  skill: { dur: 6, cd: 25, atk: 2, spd: 1.5 },
+  heroRespawn: 15
+};
+const NODE = {
+  base:   { r: 19, cap: 40, def: 0, name: "베이스" },
+  tower:  { r: 16, cap: 60, def: 1, name: "타워" },
+  fort:   { r: 17, cap: 30, def: 1, name: "요새" },
+  turret: { r: 15, cap: 20, def: 0, name: "포탑" },
+  gate:   { r: 15, cap: 15, def: 2, name: "관문" }
+};
+const COLORS = ["#8b9086", "#4a90d9", "#d2513f", "#d9a62e"];
+const FACTION = ["중립", "아군", "붉은 군단", "황금 상회"];
+const W = 360, H = 520;
+
+/* =========================================================
+   Maps — 프로빈스 1: 도시 3곳
+   n: [x, y, type, owner, garrison, turretLevel]
+   ========================================================= */
+const MAPS = [
+  { name: "갈대 나루", biome: "plain", river: [[0,262],[90,250],[180,268],[270,252],[360,264]], aiMul: 0.9,
+    blurb: "강을 건너는 길은 나루터 관문과 서쪽 여울뿐",
+    n: [[180,470,"base",1,10],[60,60,"base",2,10],[300,60,"base",3,10],[80,350,"tower",0,8],[280,350,"tower",0,8],
+        [180,262,"gate",0,6],[55,195,"base",0,10],[305,195,"base",0,10],[180,140,"fort",0,12],[180,385,"turret",0,6,1],[180,40,"tower",0,14]],
+    e: [[0,9],[0,3],[0,4],[9,3],[9,4],[9,5],[4,5],[3,6],[5,8],[5,7],[6,1],[6,8],[7,2],[8,1],[8,2],[1,10],[2,10],[8,10]] },
+  { name: "쌍둥이 다리", biome: "plain", river: [[0,250],[120,262],[240,240],[360,256]], aiMul: 1.0,
+    blurb: "두 다리를 누가 쥐느냐의 싸움",
+    n: [[180,480,"base",1,10],[50,70,"base",2,12],[310,70,"base",3,12],[180,400,"turret",0,8,2],[70,370,"tower",0,8],[290,370,"tower",0,8],
+        [100,252,"gate",0,7],[260,248,"gate",0,7],[180,175,"fort",0,14],[180,318,"base",0,10],[75,150,"tower",0,9],[285,150,"tower",0,9],[180,60,"base",0,14]],
+    e: [[0,3],[0,4],[0,5],[3,9],[4,9],[5,9],[4,6],[5,7],[9,6],[9,7],[6,10],[7,11],[6,8],[7,8],[10,1],[11,2],[8,12],[12,1],[12,2],[10,8],[11,8]] },
+  { name: "잿빛 고개", biome: "volcano", river: null, aiMul: 1.15,
+    blurb: "한가운데 3레벨 포탑이 길목을 지킨다",
+    n: [[180,480,"base",1,10],[60,60,"base",2,12],[300,60,"base",3,12],[75,410,"tower",0,8],[285,410,"tower",0,8],[180,360,"base",0,10],
+        [180,268,"turret",0,10,3],[58,262,"gate",0,8],[302,262,"fort",0,12],[100,160,"base",0,10],[260,160,"base",0,10],[180,110,"tower",0,14]],
+    e: [[0,3],[0,4],[0,5],[3,5],[4,5],[3,7],[5,6],[4,8],[6,9],[6,10],[7,9],[8,10],[9,1],[10,2],[9,11],[10,11],[11,1],[11,2],[6,11]] }
+];
+const AI_STYLE = { 2: "aggressive", 3: "defensive" };
+
+/* =========================================================
+   Save (per-viewer convenience only)
+   ========================================================= */
+const SAVE_KEY = "muddy-proto-v1";
+let save = { cleared: [], gold: 0 };
+try { const s = JSON.parse(localStorage.getItem(SAVE_KEY) || "null"); if (s && Array.isArray(s.cleared)) save = s; } catch (e) {}
+function persist() { try { localStorage.setItem(SAVE_KEY, JSON.stringify(save)); } catch (e) {} }
+
+/* =========================================================
+   Lobby
+   ========================================================= */
+const $ = id => document.getElementById(id);
+let selectedCity = 0;
+function cityUnlocked(i) { return i === 0 || save.cleared.includes(i - 1); }
+function renderLobby() {
+  $("gold").textContent = save.gold.toLocaleString("ko-KR");
+  if (!cityUnlocked(selectedCity)) selectedCity = 0;
+  const list = $("citylist"); list.innerHTML = "";
+  MAPS.forEach((m, i) => {
+    const b = document.createElement("button");
+    b.className = "city"; b.disabled = !cityUnlocked(i);
+    b.setAttribute("aria-pressed", String(i === selectedCity));
+    const done = save.cleared.includes(i);
+    b.innerHTML = `<span class="num">${i+1}</span><span class="meta"><b>${m.name}</b><small>${m.blurb}</small></span>
+      <span class="state ${done ? "done" : ""}">${done ? "점령" : (cityUnlocked(i) ? "도전 가능" : "잠김")}</span>`;
+    b.onclick = () => { selectedCity = i; renderLobby(); };
+    list.appendChild(b);
+  });
+  drawProvince();
+}
+function drawProvince() {
+  const c = $("provmap"), g = c.getContext("2d");
+  g.setTransform(2,0,0,2,0,0); g.clearRect(0,0,360,300);
+  g.fillStyle = "#2e3c35"; g.fillRect(0,0,360,300);
+  // contour hatching
+  g.strokeStyle = "rgba(236,229,207,.06)"; g.lineWidth = 1;
+  for (let k = 0; k < 9; k++) { g.beginPath(); for (let x = 0; x <= 360; x += 12) { const y = 30 + k*32 + Math.sin(x/38 + k)*7; x ? g.lineTo(x,y) : g.moveTo(x,y); } g.stroke(); }
+  const pts = [[70,220],[180,150],[290,80]];
+  g.setLineDash([5,6]); g.strokeStyle = "rgba(236,229,207,.45)"; g.lineWidth = 2;
+  g.beginPath(); pts.forEach((p,i)=> i ? g.lineTo(...p) : g.moveTo(...p)); g.stroke(); g.setLineDash([]);
+  pts.forEach((p,i) => {
+    const done = save.cleared.includes(i), open = cityUnlocked(i);
+    g.beginPath(); g.arc(p[0], p[1], i === selectedCity ? 24 : 20, 0, Math.PI*2);
+    g.fillStyle = done ? COLORS[1] : (open ? "#3d4d45" : "#262f2b"); g.fill();
+    g.lineWidth = 2; g.strokeStyle = i === selectedCity ? "#e0b04a" : "rgba(236,229,207,.35)"; g.stroke();
+    g.fillStyle = "#ece5cf"; g.font = "18px 'Do Hyeon', sans-serif"; g.textAlign = "center"; g.textBaseline = "middle";
+    g.fillText(done ? "✓" : String(i+1), p[0], p[1]+1);
+    g.font = "14px 'Gowun Dodum', sans-serif"; g.fillStyle = open ? "#ece5cf" : "#a9a58f";
+    g.fillText(MAPS[i].name, p[0], p[1] + 38);
+  });
+  g.fillStyle = "rgba(210,81,63,.7)"; g.font = "13px 'Gowun Dodum', sans-serif"; g.textAlign = "right";
+  g.fillText("북쪽 너머: 암흑군단의 그림자", 350, 22);
+}
+document.querySelectorAll(".tab").forEach(t => t.onclick = () => {
+  document.querySelectorAll(".tab").forEach(x => x.setAttribute("aria-selected", String(x === t)));
+  ["battle","army","shop","arena","clan"].forEach(k => $("tab-" + k).hidden = k !== t.dataset.tab);
+});
+$("start").onclick = () => startBattle(selectedCity);
+
+/* =========================================================
+   Battle state
+   ========================================================= */
+let G = null;          // current game
+let speed = 1, raf = 0, last = 0;
+const autoplay = location.hash === "#autoplay";
+
+function startBattle(idx) {
+  const m = MAPS[idx];
+  const nodes = m.n.map((d, i) => ({
+    id: i, x: d[0], y: d[1], type: d[2], owner: d[3],
+    g: { melee: d[4], ranged: 0 }, dmg: 0, res: 0,
+    prod: "melee", link: null, sendT: 0, lvl: d[5] || 0, shootT: 0, flash: 0
+  }));
+  const adj = nodes.map(() => []);
+  m.e.forEach(([a, b]) => { adj[a].push(b); adj[b].push(a); });
+  G = {
+    idx, map: m, nodes, adj, units: [], shots: [], puffs: [],
+    t: 0, over: false, aiT: { 2: 0.8, 3: 1.6 },
+    hero: { hp: CFG.unit.hero.hp, state: "node", node: 0, respawn: 0 },
+    skillT: 0, skillCd: 0, drag: null,
+    stats: { prod: 0, cap: 0 }, toastT: 6
+  };
+  $("lobby").hidden = true; $("battle").hidden = false; $("result").hidden = true; $("sheet").hidden = true;
+  $("bname").textContent = `도시 ${idx+1} · ${m.name}`;
+  showToast("내 거점에서 이웃 거점으로 드래그하면 병력이 이동합니다.<br>선을 탭하면 취소, 베이스를 탭하면 근거리↔원거리 생산 전환.");
+  resize();
+  cancelAnimationFrame(raf); last = performance.now(); raf = requestAnimationFrame(loop);
+}
+function endToLobby() { cancelAnimationFrame(raf); G = null; $("battle").hidden = true; $("lobby").hidden = false; renderLobby(); }
+
+/* ---------- helpers ---------- */
+const total = n => n.g.melee + n.g.ranged + (heroAt(n) ? 1 : 0);
+const heroAt = n => G.hero.state === "node" && G.hero.node === n.id && n.owner === 1;
+const dist = (a, b) => Math.hypot(a.x - b.x, a.y - b.y);
+function forts(owner) { return Math.min(2, G.nodes.filter(n => n.type === "fort" && n.owner === owner).length); }
+function stat(owner, type) {
+  const s = CFG.unit[type];
+  const boost = owner === 1 && G.skillT > 0;
+  return {
+    hp: s.hp,
+    atk: s.atk + (boost ? CFG.skill.atk : 0),
+    def: s.def + forts(owner),
+    spd: s.spd * (boost ? CFG.skill.spd : 1)
+  };
+}
+function unitPos(u) { const a = G.nodes[u.from], b = G.nodes[u.to], k = u.d / u.len; return { x: a.x + (b.x - a.x) * k, y: a.y + (b.y - a.y) * k }; }
+function frontType(n) {
+  if (n.g.melee > 0) return "melee";
+  if (heroAt(n)) return "hero";
+  if (n.g.ranged > 0) return "ranged";
+  return null;
+}
+function killHero() { G.hero.state = "dead"; G.hero.respawn = CFG.heroRespawn; G.hero.hp = 0; }
+function puff(x, y, c) { for (let i = 0; i < 5; i++) G.puffs.push({ x, y, vx: (Math.random()-.5)*50, vy: (Math.random()-.5)*50, t: .35, c }); }
+
+/* damage to a node's front defender (ranged fire, turrets) */
+function hitNode(n, dmg) {
+  const f = frontType(n); if (!f) return;
+  if (f === "hero") { G.hero.hp -= dmg; if (G.hero.hp <= 0) { killHero(); puff(n.x, n.y, COLORS[1]); } return; }
+  n.dmg += dmg;
+  if (n.dmg >= CFG.unit[f].hp) { n.g[f]--; n.dmg = 0; puff(n.x, n.y, COLORS[n.owner]); }
+}
+/* damage to a moving unit */
+function hitUnit(u, dmg) {
+  u.hp -= dmg;
+  if (u.type === "hero") G.hero.hp = Math.max(0, u.hp);
+  if (u.hp <= 0) { u.dead = true; const p = unitPos(u); puff(p.x, p.y, COLORS[u.owner]); if (u.type === "hero") killHero(); }
+}
+/* simultaneous-exchange duel. returns rounds to kill */
+function duelRounds(hpA, atkA, defB) { return Math.ceil(hpA / Math.max(1, atkA - defB)); }
+
+/* unit arrives at enemy/neutral node */
+function assault(n, u) {
+  const us = stat(u.owner, u.type);
+  while (!u.dead) {
+    const f = frontType(n);
+    if (!f) { capture(n, u); return; }
+    const ds = f === "hero" ? stat(1, "hero") : stat(n.owner, f);
+    const dDef = ds.def + NODE[n.type].def - (n.owner === 0 ? forts(0) : 0);
+    const dHp = f === "hero" ? G.hero.hp : CFG.unit[f].hp - n.dmg;
+    const a2d = Math.max(1, us.atk - dDef), d2a = Math.max(1, ds.atk - us.def);
+    const ka = Math.ceil(dHp / a2d), kd = Math.ceil(u.hp / d2a);
+    if (ka < kd) {
+      u.hp -= ka * d2a;
+      if (f === "hero") killHero(); else { n.g[f]--; n.dmg = 0; }
+    } else if (kd < ka) {
+      if (f === "hero") G.hero.hp -= kd * a2d; else n.dmg += kd * a2d;
+      u.dead = true; if (u.type === "hero") killHero();
+    } else {
+      if (f === "hero") killHero(); else { n.g[f]--; n.dmg = 0; }
+      u.dead = true; if (u.type === "hero") killHero();
+    }
+    n.flash = .15;
+  }
+  if (u.type === "hero") G.hero.hp = Math.max(0, u.hp);
+  puff(n.x, n.y, COLORS[u.owner]);
+}
+function capture(n, u) {
+  n.owner = u.owner; n.g = { melee: 0, ranged: 0 }; n.dmg = 0; n.res = 0; n.link = null; n.sendT = 0;
+  if (u.type === "hero") { G.hero.state = "node"; G.hero.node = n.id; G.hero.hp = u.hp; }
+  else n.g[u.type] = 1;
+  u.dead = true; n.flash = .4;
+  if (u.owner === 1) G.stats.cap++;
+  // links into this node from same owner stay valid; links from others pointing here are kept (they'll attack)
+}
+function arrive(u) {
+  const n = G.nodes[u.to];
+  if (n.owner === u.owner) {
+    if (u.type === "hero") { G.hero.state = "node"; G.hero.node = n.id; G.hero.hp = u.hp; }
+    else n.g[u.type]++;
+    u.dead = true;
+  } else assault(n, u);
+}
+
+/* =========================================================
+   Simulation step
+   ========================================================= */
+function step(dt) {
+  G.t += dt;
+  if (G.skillT > 0) G.skillT -= dt;
+  if (G.skillCd > 0) G.skillCd -= dt;
+  if (G.toastT > 0) { G.toastT -= dt; if (G.toastT <= 0) $("toast").classList.add("hide"); }
+  if (G.hero.state === "dead") {
+    G.hero.respawn -= dt;
+    if (G.hero.respawn <= 0) {
+      const home = G.nodes.find(n => n.owner === 1 && n.type === "base") || G.nodes.find(n => n.owner === 1);
+      if (home) { G.hero.state = "node"; G.hero.node = home.id; G.hero.hp = CFG.unit.hero.hp; }
+      else G.hero.respawn = 1;
+    }
+  }
+
+  // production
+  for (const n of G.nodes) {
+    n.flash = Math.max(0, n.flash - dt);
+    if (n.type !== "base" || n.owner === 0) continue;
+    const mul = n.owner === 1 ? 1 : G.map.aiMul;
+    n.res += CFG.resPerMin / 60 * mul * dt;
+    const c = CFG.cost[n.prod];
+    if (n.res >= c && n.g.melee + n.g.ranged < NODE.base.cap) {
+      n.res -= c; n.g[n.prod]++; if (n.owner === 1) G.stats.prod++;
+      if (n.owner !== 1) n.prod = aiPickProd(n.owner);
+    } else if (n.res > c) n.res = c;
+  }
+
+  // sending along links
+  for (const n of G.nodes) {
+    if (n.link == null || n.owner === 0) continue;
+    n.sendT += dt;
+    if (n.sendT < CFG.sendInterval) continue;
+    n.sendT = 0;
+    const hold = n.type === "gate" ? CFG.gateHold : 0;
+    let type = null;
+    if (heroAt(n)) type = "hero";
+    else if (n.g.melee + n.g.ranged > hold) type = n.g.melee >= n.g.ranged ? "melee" : "ranged";
+    if (!type) continue;
+    const to = G.nodes[n.link];
+    const u = { owner: n.owner, type, from: n.id, to: to.id, d: NODE[n.type].r, len: dist(n, to), shootT: Math.random() * .5 };
+    if (type === "hero") { u.hp = G.hero.hp; G.hero.state = "moving"; }
+    else { u.hp = CFG.unit[type].hp; n.g[type]--; if (type === frontType(n) || n.g[type] === 0) n.dmg = 0; }
+    G.units.push(u);
+  }
+
+  // movement
+  for (const u of G.units) {
+    if (u.dead) continue;
+    u.d += stat(u.owner, u.type).spd * dt;
+    if (u.d >= u.len - NODE[G.nodes[u.to].type].r) arrive(u);
+  }
+
+  // head-on clashes on the same road
+  const roads = new Map();
+  for (const u of G.units) { if (u.dead) continue; const k = Math.min(u.from, u.to) + "-" + Math.max(u.from, u.to); (roads.get(k) || roads.set(k, []).get(k)).push(u); }
+  for (const list of roads.values()) {
+    if (list.length < 2) continue;
+    for (const a of list) {
+      if (a.dead) continue;
+      for (const b of list) {
+        if (b.dead || a === b || a.owner === b.owner || a.from !== b.to) continue;
+        if (a.d + b.d < a.len - 2) continue;      // not met yet
+        const sa = stat(a.owner, a.type), sb = stat(b.owner, b.type);
+        const ka = duelRounds(b.hp, sa.atk, sb.def), kb = duelRounds(a.hp, sb.atk, sa.def);
+        if (ka < kb) { hitUnit(a, ka * Math.max(1, sb.atk - sa.def)); hitUnit(b, 1e9); }
+        else if (kb < ka) { hitUnit(b, kb * Math.max(1, sa.atk - sb.def)); hitUnit(a, 1e9); }
+        else { hitUnit(a, 1e9); hitUnit(b, 1e9); }
+        if (a.dead) break;
+      }
+    }
+  }
+
+  // ranged fire (moving archers)
+  const rs = CFG.unit.ranged;
+  for (const u of G.units) {
+    if (u.dead || u.type !== "ranged") continue;
+    u.shootT -= dt; if (u.shootT > 0) continue;
+    const p = unitPos(u);
+    let best = null, bd = rs.range;
+    for (const v of G.units) { if (v.dead || v.owner === u.owner) continue; const q = unitPos(v), d = Math.hypot(q.x - p.x, q.y - p.y); if (d < bd) { bd = d; best = v; } }
+    const s = stat(u.owner, "ranged");
+    if (best) {
+      const q = unitPos(best); hitUnit(best, Math.max(1, s.atk - stat(best.owner, best.type).def));
+      G.shots.push({ x1: p.x, y1: p.y, x2: q.x, y2: q.y, t: .12, c: COLORS[u.owner] }); u.shootT = rs.cd;
+    } else {
+      const tn = G.nodes[u.to];
+      if (tn.owner !== u.owner && frontType(tn) && dist(p, tn) < rs.range) {
+        const f = frontType(tn), ds = f === "hero" ? stat(1, "hero") : stat(tn.owner, f);
+        hitNode(tn, Math.max(1, s.atk - ds.def - NODE[tn.type].def));
+        G.shots.push({ x1: p.x, y1: p.y, x2: tn.x, y2: tn.y, t: .12, c: COLORS[u.owner] }); u.shootT = rs.cd;
+      }
+    }
+  }
+
+  // garrison archers + turrets defend
+  for (const n of G.nodes) {
+    n.shootT -= dt; if (n.shootT > 0) continue;
+    const isTurret = n.type === "turret";
+    const shooters = isTurret ? 1 : Math.min(n.g.ranged, 4);
+    if (!shooters) continue;
+    const range = isTurret ? CFG.turret.range : rs.range + 10;
+    const targets = G.units.filter(v => !v.dead && v.owner !== n.owner && (n.owner !== 0 || isTurret)).map(v => ({ v, d: dist(unitPos(v), n) })).filter(o => o.d < range).sort((a, b) => a.d - b.d);
+    if (!targets.length) { n.shootT = .2; continue; }
+    for (let i = 0; i < shooters && i < targets.length; i++) {
+      const v = targets[i].v, q = unitPos(v);
+      const dmg = isTurret ? n.lvl : Math.max(1, stat(n.owner, "ranged").atk - stat(v.owner, v.type).def);
+      hitUnit(v, dmg);
+      G.shots.push({ x1: n.x, y1: n.y, x2: q.x, y2: q.y, t: .12, c: isTurret ? "#ffe2a0" : COLORS[n.owner] });
+    }
+    n.shootT = isTurret ? CFG.turret.cd : rs.cd;
+  }
+
+  G.units = G.units.filter(u => !u.dead);
+  for (const s of G.shots) s.t -= dt; G.shots = G.shots.filter(s => s.t > 0);
+  for (const p of G.puffs) { p.t -= dt; p.x += p.vx * dt; p.y += p.vy * dt; } G.puffs = G.puffs.filter(p => p.t > 0);
+
+  // drop links whose source changed hands
+  for (const n of G.nodes) if (n.owner === 0) n.link = null;
+
+  // AI
+  for (const o of [2, 3]) { G.aiT[o] -= dt; if (G.aiT[o] <= 0) { G.aiT[o] = 1.3 + Math.random() * .6; aiThink(o, AI_STYLE[o]); } }
+  if (autoplay) { G.aiT[1] = (G.aiT[1] || 0) - dt; if (G.aiT[1] <= 0) { G.aiT[1] = 1.2; aiThink(1, "aggressive"); if (G.skillCd <= 0) useSkill(); } }
+
+  checkEnd();
+}
+
+/* =========================================================
+   AI
+   ========================================================= */
+function aiPickProd(owner) { return Math.random() < (AI_STYLE[owner] === "aggressive" ? .75 : .5) ? "melee" : "ranged"; }
+function strength(n) { return n.g.melee * 1.1 + n.g.ranged + (heroAt(n) ? 7 : 0) + NODE[n.type].def * 2 + (n.type === "turret" ? n.lvl * 3 : 0); }
+function frontierDist(owner) {
+  const d = G.nodes.map(() => Infinity), q = [];
+  G.nodes.forEach(n => { if (n.owner !== owner) { d[n.id] = 0; q.push(n.id); } });
+  while (q.length) { const i = q.shift(); for (const j of G.adj[i]) if (d[j] === Infinity) { d[j] = d[i] + 1; q.push(j); } }
+  return d;
+}
+function incoming(n) { return G.units.filter(u => u.to === n.id && u.owner !== n.owner).length; }
+function aiThink(owner, style) {
+  const aggr = style === "aggressive";
+  const fd = frontierDist(owner);
+  for (const n of G.nodes) {
+    if (n.owner !== owner) continue;
+    const mine = n.g.melee + n.g.ranged + (heroAt(n) ? 6 : 0);
+    const enemies = G.adj[n.id].map(i => G.nodes[i]).filter(m => m.owner !== owner);
+    if (!enemies.length) {
+      // interior: push troops toward the front
+      if (mine >= 3) { const nxt = G.adj[n.id].slice().sort((a, b) => fd[a] - fd[b])[0]; n.link = nxt; } else n.link = null;
+      continue;
+    }
+    const threat = incoming(n);
+    if (!aggr && threat > mine * .6) { n.link = null; continue; }          // defensive: hold when attacked
+    const minSend = aggr ? 5 : 11;
+    let best = null, bs = -Infinity;
+    for (const m of enemies) {
+      const need = strength(m) * (aggr ? 1.15 : 1.6) + (aggr ? 1 : 4);
+      if (mine < need) continue;
+      let s = -strength(m) - dist(n, m) / 40;
+      if (m.type === "base") s += 8;
+      if (m.owner === 0) s += aggr ? 1 : 4;
+      if (m.owner === 1) s += aggr ? 4 : 0;
+      if (s > bs) { bs = s; best = m; }
+    }
+    if (best && mine >= minSend) n.link = best.id;
+    else if (n.link != null && G.nodes[n.link].owner !== owner) {
+      const t = G.nodes[n.link];
+      if (strength(t) > mine * 1.4 + 3) n.link = null;   // retreat from losing fights
+    } else if (n.link != null && G.nodes[n.link].owner === owner && fd[n.link] >= fd[n.id]) n.link = null;
+  }
+}
+
+/* =========================================================
+   End
+   ========================================================= */
+function alive(owner) { return G.nodes.some(n => n.owner === owner) || G.units.some(u => u.owner === owner); }
+function checkEnd() {
+  if (G.over) return;
+  const me = alive(1), foes = alive(2) || alive(3);
+  if (me && foes) return;
+  G.over = true;
+  const win = me && !foes;
+  const reward = 80 + G.idx * 40;
+  if (win) { if (!save.cleared.includes(G.idx)) save.cleared.push(G.idx); save.gold += reward; persist(); }
+  const mm = Math.floor(G.t / 60), ss = String(Math.floor(G.t % 60)).padStart(2, "0");
+  $("rtitle").textContent = win ? "승리" : "패배"; $("rtitle").className = win ? "win" : "lose";
+  $("rsub").textContent = win ? `${G.map.name} 점령 · 골드 +${reward}` : "모든 거점을 잃었습니다";
+  $("rtime").textContent = `${mm}:${ss}`; $("rprod").textContent = G.stats.prod; $("rcap").textContent = G.stats.cap;
+  $("rad").hidden = !win; $("rad").disabled = false; $("rad").dataset.reward = reward;
+  $("result").hidden = false;
+  window.__result = win ? "win" : "lose";
+}
+$("rad").onclick = () => {
+  save.gold += Number($("rad").dataset.reward || 0); persist();
+  $("rsub").textContent += " · 광고 보상 2배 적용(목업)"; $("rad").disabled = true;
+};
+$("rretry").onclick = () => startBattle(G.idx);
+$("rback").onclick = endToLobby;
+$("quit").onclick = endToLobby;
+
+/* =========================================================
+   Rendering
+   ========================================================= */
+const cv = $("board"), cx = cv.getContext("2d");
+let view = { s: 1, ox: 0, oy: 0, dpr: 1 };
+function resize() {
+  const r = cv.getBoundingClientRect(), dpr = Math.min(2, window.devicePixelRatio || 1);
+  cv.width = Math.max(1, r.width * dpr); cv.height = Math.max(1, r.height * dpr);
+  const s = Math.min(r.width / W, r.height / H);
+  view = { s, ox: (r.width - W * s) / 2, oy: (r.height - H * s) / 2, dpr };
+}
+window.addEventListener("resize", () => { if (G) resize(); });
+
+function drawTerrain() {
+  const m = G.map;
+  cx.fillStyle = m.biome === "volcano" ? "#2f2a28" : "#2b3a31"; cx.fillRect(-40, -40, W + 80, H + 80);
+  // soft field patches
+  cx.fillStyle = m.biome === "volcano" ? "rgba(120,60,40,.18)" : "rgba(120,150,90,.12)";
+  for (let i = 0; i < 14; i++) { const x = (i * 97) % W, y = (i * 151) % H; cx.beginPath(); cx.ellipse(x, y, 46, 22, i, 0, Math.PI * 2); cx.fill(); }
+  if (m.river) {
+    cx.strokeStyle = "#3a6f8f"; cx.lineWidth = 16; cx.lineCap = "round"; cx.lineJoin = "round";
+    cx.beginPath(); m.river.forEach((p, i) => i ? cx.lineTo(...p) : cx.moveTo(...p)); cx.stroke();
+    cx.strokeStyle = "rgba(180,220,240,.25)"; cx.lineWidth = 2; cx.setLineDash([6, 10]);
+    cx.beginPath(); m.river.forEach((p, i) => i ? cx.lineTo(p[0], p[1] - 3) : cx.moveTo(p[0], p[1] - 3)); cx.stroke(); cx.setLineDash([]);
+  }
+  if (m.biome === "volcano") {
+    cx.strokeStyle = "rgba(230,110,50,.35)"; cx.lineWidth = 2;
+    [[20,300,120,330,140,290],[230,330,300,300,350,340],[150,200,200,230,250,205]].forEach(c => { cx.beginPath(); cx.moveTo(c[0], c[1]); cx.lineTo(c[2], c[3]); cx.lineTo(c[4], c[5]); cx.stroke(); });
+  }
+}
+function shape(n, r) {
+  cx.beginPath();
+  if (n.type === "base") cx.arc(n.x, n.y, r, 0, Math.PI * 2);
+  else if (n.type === "tower") cx.roundRect(n.x - r, n.y - r, r * 2, r * 2, 4);
+  else if (n.type === "fort") { for (let i = 0; i < 6; i++) { const a = Math.PI / 6 + i * Math.PI / 3; cx.lineTo(n.x + Math.cos(a) * r * 1.1, n.y + Math.sin(a) * r * 1.1); } cx.closePath(); }
+  else if (n.type === "turret") { cx.moveTo(n.x, n.y - r * 1.2); cx.lineTo(n.x + r * 1.1, n.y + r * .8); cx.lineTo(n.x - r * 1.1, n.y + r * .8); cx.closePath(); }
+  else if (n.type === "gate") cx.roundRect(n.x - r * 1.5, n.y - r * .8, r * 3, r * 1.6, 3);
+}
+function draw() {
+  const { s, ox, oy, dpr } = view;
+  cx.setTransform(dpr, 0, 0, dpr, 0, 0);
+  cx.fillStyle = "#24302b"; cx.fillRect(0, 0, cv.width, cv.height);
+  cx.setTransform(dpr * s, 0, 0, dpr * s, dpr * ox, dpr * oy);
+  drawTerrain();
+
+  // roads
+  cx.lineCap = "round";
+  for (const [a, b] of G.map.e) { const A = G.nodes[a], B = G.nodes[b]; cx.strokeStyle = "rgba(236,229,207,.16)"; cx.lineWidth = 5; cx.beginPath(); cx.moveTo(A.x, A.y); cx.lineTo(B.x, B.y); cx.stroke(); }
+
+  // links
+  const t = G.t;
+  for (const n of G.nodes) {
+    if (n.link == null) continue;
+    const B = G.nodes[n.link];
+    cx.strokeStyle = COLORS[n.owner]; cx.lineWidth = 3; cx.setLineDash([7, 6]); cx.lineDashOffset = -t * 30;
+    cx.beginPath(); cx.moveTo(n.x, n.y); cx.lineTo(B.x, B.y); cx.stroke(); cx.setLineDash([]);
+    const ang = Math.atan2(B.y - n.y, B.x - n.x), mx = (n.x + B.x) / 2, my = (n.y + B.y) / 2;
+    cx.fillStyle = COLORS[n.owner]; cx.beginPath(); cx.moveTo(mx + Math.cos(ang) * 7, my + Math.sin(ang) * 7);
+    cx.lineTo(mx + Math.cos(ang + 2.5) * 7, my + Math.sin(ang + 2.5) * 7); cx.lineTo(mx + Math.cos(ang - 2.5) * 7, my + Math.sin(ang - 2.5) * 7); cx.fill();
+  }
+
+  // drag preview
+  if (G.drag) {
+    const A = G.nodes[G.drag.from];
+    for (const j of G.adj[A.id]) { const B = G.nodes[j]; cx.strokeStyle = "rgba(224,176,74,.55)"; cx.lineWidth = 2; cx.beginPath(); cx.arc(B.x, B.y, NODE[B.type].r + 7, 0, Math.PI * 2); cx.stroke(); }
+    cx.strokeStyle = "#e0b04a"; cx.lineWidth = 3; cx.beginPath(); cx.moveTo(A.x, A.y); cx.lineTo(G.drag.x, G.drag.y); cx.stroke();
+  }
+
+  // turret ranges (subtle)
+  for (const n of G.nodes) if (n.type === "turret") { cx.fillStyle = "rgba(255,226,160,.05)"; cx.beginPath(); cx.arc(n.x, n.y, CFG.turret.range, 0, Math.PI * 2); cx.fill(); }
+
+  // nodes
+  cx.textAlign = "center"; cx.textBaseline = "middle";
+  for (const n of G.nodes) {
+    const def = NODE[n.type], r = def.r + (n.flash > 0 ? 2 : 0);
+    shape(n, r + 3); cx.fillStyle = "rgba(0,0,0,.35)"; cx.fill();
+    shape(n, r); cx.fillStyle = COLORS[n.owner]; cx.fill();
+    cx.lineWidth = 2; cx.strokeStyle = "rgba(20,24,22,.7)"; cx.stroke();
+    if (n.type === "base") { cx.beginPath(); cx.arc(n.x, n.y, r - 5, 0, Math.PI * 2); cx.strokeStyle = "rgba(255,255,255,.35)"; cx.lineWidth = 1.5; cx.stroke(); }
+    const tot = n.g.melee + n.g.ranged;
+    cx.fillStyle = "#fff"; cx.font = `${n.type === "turret" ? 12 : 15}px 'Do Hyeon', sans-serif`;
+    cx.fillText(String(tot), n.x, n.y + (n.type === "turret" ? 4 : 1));
+    // composition bar
+    if (tot > 0) {
+      const bw = 26, mw = bw * n.g.melee / tot;
+      cx.fillStyle = "rgba(0,0,0,.5)"; cx.fillRect(n.x - bw / 2 - 1, n.y + r + 4, bw + 2, 5);
+      cx.fillStyle = "#ece5cf"; cx.fillRect(n.x - bw / 2, n.y + r + 5, mw, 3);
+      cx.fillStyle = "#8fd0e6"; cx.fillRect(n.x - bw / 2 + mw, n.y + r + 5, bw - mw, 3);
+    }
+    // badges
+    if (n.type === "base" && n.owner !== 0) {
+      cx.fillStyle = n.prod === "melee" ? "#ece5cf" : "#8fd0e6"; cx.beginPath(); cx.arc(n.x + r - 2, n.y - r + 2, 7, 0, Math.PI * 2); cx.fill();
+      cx.fillStyle = "#1a201d"; cx.font = "10px 'Do Hyeon', sans-serif"; cx.fillText(n.prod === "melee" ? "근" : "원", n.x + r - 2, n.y - r + 3);
+    }
+    if (n.type === "turret") { for (let i = 0; i < 3; i++) { cx.fillStyle = i < n.lvl ? "#ffe2a0" : "rgba(255,255,255,.2)"; cx.fillRect(n.x - 9 + i * 7, n.y - r - 9, 5, 4); } }
+    if (n.type === "gate") { cx.fillStyle = "rgba(255,255,255,.8)"; cx.font = "9px 'Gowun Dodum', sans-serif"; cx.fillText(`최소 ${CFG.gateHold}`, n.x, n.y - r - 6); }
+    if (n.type === "fort") { cx.fillStyle = "rgba(255,255,255,.7)"; cx.font = "9px 'Gowun Dodum', sans-serif"; cx.fillText("방어+1", n.x, n.y - r - 7); }
+    if (heroAt(n)) { cx.strokeStyle = "#e0b04a"; cx.lineWidth = 3; cx.beginPath(); cx.arc(n.x, n.y, r + 6, -Math.PI * .9, -Math.PI * .1); cx.stroke(); cx.fillStyle = "#e0b04a"; star(n.x, n.y - r - 9, 6); }
+  }
+
+  // units
+  for (const u of G.units) {
+    const p = unitPos(u);
+    cx.fillStyle = COLORS[u.owner];
+    if (u.type === "hero") { cx.fillStyle = "#e0b04a"; star(p.x, p.y, 8); cx.strokeStyle = COLORS[1]; cx.lineWidth = 1.5; cx.beginPath(); cx.arc(p.x, p.y, 9, 0, Math.PI * 2); cx.stroke(); }
+    else if (u.type === "ranged") { cx.beginPath(); cx.moveTo(p.x, p.y - 4); cx.lineTo(p.x + 4, p.y); cx.lineTo(p.x, p.y + 4); cx.lineTo(p.x - 4, p.y); cx.fill(); }
+    else { cx.beginPath(); cx.arc(p.x, p.y, 3.4, 0, Math.PI * 2); cx.fill(); }
+  }
+  for (const sh of G.shots) { cx.strokeStyle = sh.c; cx.globalAlpha = sh.t / .12; cx.lineWidth = 1.2; cx.beginPath(); cx.moveTo(sh.x1, sh.y1); cx.lineTo(sh.x2, sh.y2); cx.stroke(); }
+  cx.globalAlpha = 1;
+  for (const p of G.puffs) { cx.fillStyle = p.c; cx.globalAlpha = Math.max(0, p.t / .35); cx.beginPath(); cx.arc(p.x, p.y, 2, 0, Math.PI * 2); cx.fill(); }
+  cx.globalAlpha = 1;
+  if (G.skillT > 0) { cx.fillStyle = "rgba(224,176,74,.06)"; cx.fillRect(0, 0, W, H); }
+}
+function star(x, y, r) { cx.beginPath(); for (let i = 0; i < 10; i++) { const a = -Math.PI / 2 + i * Math.PI / 5, rr = i % 2 ? r * .45 : r; cx.lineTo(x + Math.cos(a) * rr, y + Math.sin(a) * rr); } cx.closePath(); cx.fill(); }
+
+/* HUD */
+function hud() {
+  const mm = String(Math.floor(G.t / 60)).padStart(2, "0"), ss = String(Math.floor(G.t % 60)).padStart(2, "0");
+  $("btime").textContent = `${mm}:${ss} · 3자 난전`;
+  const pw = [1, 2, 3].map(o => G.nodes.filter(n => n.owner === o).reduce((a, n) => a + total(n), 0) + G.units.filter(u => u.owner === o).length);
+  const sum = pw.reduce((a, b) => a + b, 0) || 1;
+  $("power").innerHTML = pw.map((v, i) => `<span style="width:${v / sum * 100}%;background:${COLORS[i + 1]}"></span>`).join("");
+  const h = G.hero;
+  $("herohp").style.width = `${Math.max(0, h.hp) / CFG.unit.hero.hp * 100}%`;
+  $("herostate").textContent = h.state === "dead" ? `전사 · ${Math.ceil(h.respawn)}초 후 베이스에서 부활` : h.state === "moving" ? "이동 중" : `${NODE[G.nodes[h.node].type].name} 주둔 중 · 선을 이으면 함께 출격`;
+  $("skill").disabled = G.skillCd > 0;
+  $("skillcd").style.height = `${Math.max(0, G.skillCd) / CFG.skill.cd * 100}%`;
+}
+
+function loop(now) {
+  if (!G) return;
+  const dt = Math.min(.05, (now - last) / 1000); last = now;
+  if (!G.over) { const sub = speed; for (let i = 0; i < sub; i++) step(dt); }
+  draw(); hud();
+  raf = requestAnimationFrame(loop);
+}
+
+/* =========================================================
+   Input
+   ========================================================= */
+function toWorld(e) { const r = cv.getBoundingClientRect(); return { x: (e.clientX - r.left - view.ox) / view.s, y: (e.clientY - r.top - view.oy) / view.s }; }
+function nodeAt(p) { let best = null, bd = 30; for (const n of G.nodes) { const d = Math.hypot(n.x - p.x, n.y - p.y); if (d < bd) { bd = d; best = n; } } return best; }
+function segDist(p, a, b) { const dx = b.x - a.x, dy = b.y - a.y, l = dx * dx + dy * dy; let k = ((p.x - a.x) * dx + (p.y - a.y) * dy) / l; k = Math.max(0, Math.min(1, k)); return Math.hypot(p.x - a.x - dx * k, p.y - a.y - dy * k); }
+cv.addEventListener("pointerdown", e => {
+  if (!G || G.over) return;
+  const p = toWorld(e), n = nodeAt(p);
+  if (n && n.owner === 1) { G.drag = { from: n.id, x: p.x, y: p.y, sx: p.x, sy: p.y }; cv.setPointerCapture(e.pointerId); return; }
+  // tap on own link = cancel
+  for (const m of G.nodes) if (m.owner === 1 && m.link != null && segDist(p, m, G.nodes[m.link]) < 12) { m.link = null; return; }
+});
+cv.addEventListener("pointermove", e => { if (G && G.drag) { const p = toWorld(e); G.drag.x = p.x; G.drag.y = p.y; } });
+cv.addEventListener("pointerup", e => {
+  if (!G || !G.drag) return;
+  const d = G.drag; G.drag = null;
+  const src = G.nodes[d.from]; if (src.owner !== 1) return;
+  const p = toWorld(e), moved = Math.hypot(p.x - d.sx, p.y - d.sy);
+  const tgt = nodeAt(p);
+  if (moved < 10 || (tgt && tgt.id === src.id)) {
+    if (src.type === "base") src.prod = src.prod === "melee" ? "ranged" : "melee";
+    else if (src.link != null) src.link = null;
+    return;
+  }
+  if (tgt && G.adj[src.id].includes(tgt.id)) src.link = tgt.id;
+});
+cv.addEventListener("pointercancel", () => { if (G) G.drag = null; });
+
+function useSkill() { if (!G || G.skillCd > 0 || G.over) return; G.skillT = CFG.skill.dur; G.skillCd = CFG.skill.cd; }
+$("skill").onclick = useSkill;
+$("speed").onclick = () => { speed = speed === 1 ? 2 : 1; $("speed").textContent = `${speed}배속`; };
+
+function showToast(html) { const t = $("toast"); t.innerHTML = html; t.classList.remove("hide"); if (G) G.toastT = 6; }
+
+/* tuning sheet */
+const SLIDERS = [
+  ["자원(분당)", () => CFG.resPerMin, v => CFG.resPerMin = v, 20, 180, 5],
+  ["근거리 공격", () => CFG.unit.melee.atk, v => CFG.unit.melee.atk = v, 1, 10, 1],
+  ["근거리 방어", () => CFG.unit.melee.def, v => CFG.unit.melee.def = v, 0, 5, 1],
+  ["근거리 체력", () => CFG.unit.melee.hp, v => CFG.unit.melee.hp = v, 4, 30, 1],
+  ["원거리 공격", () => CFG.unit.ranged.atk, v => CFG.unit.ranged.atk = v, 1, 10, 1],
+  ["원거리 체력", () => CFG.unit.ranged.hp, v => CFG.unit.ranged.hp = v, 2, 20, 1],
+  ["원거리 사거리", () => CFG.unit.ranged.range, v => CFG.unit.ranged.range = v, 30, 120, 2],
+  ["원거리 비용", () => CFG.cost.ranged, v => CFG.cost.ranged = v, .5, 4, .25],
+  ["이동 속도", () => CFG.unit.melee.spd, v => { const k = v / CFG.unit.melee.spd; CFG.unit.melee.spd = v; CFG.unit.ranged.spd *= k; CFG.unit.hero.spd *= k; }, 20, 100, 2],
+  ["관문 최소 인원", () => CFG.gateHold, v => CFG.gateHold = v, 0, 10, 1]
+];
+function buildSliders() {
+  $("sliders").innerHTML = "";
+  SLIDERS.forEach(([label, get, set, min, max, st], i) => {
+    const row = document.createElement("label"); row.className = "row";
+    row.innerHTML = `<span>${label}</span><input type="range" id="sl${i}" min="${min}" max="${max}" step="${st}" value="${get()}"><output>${get()}</output>`;
+    const inp = row.querySelector("input"), out = row.querySelector("output");
+    inp.oninput = () => { set(Number(inp.value)); out.textContent = inp.value; };
+    $("sliders").appendChild(row);
+  });
+}
+$("tune").onclick = () => { buildSliders(); $("sheet").hidden = !$("sheet").hidden; };
+$("sheetclose").onclick = () => $("sheet").hidden = true;
+
+renderLobby();
+if (autoplay) startBattle(Number(new URLSearchParams(location.search).get("city") || 0));
+</script>
+
+</body>
+</html>
