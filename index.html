@@ -962,7 +962,7 @@ function renderPanel() {
   let h = `<div class="prow"><span class="nm">${NODE[n.type].name}</span><span class="gar" id="pgar">${garText(n)}</span></div>`;
   if (n.type === "base") {
     h += `<div class="prow"><span class="k">생산</span>` +
-      ["melee", "ranged"].map(k => pill("data-prod", k, n.prod === k, `${TYPE_LABEL[k]} <small>${CFG.cost[k]}</small>`, TYPE_DOT[k])).join("") + `</div>`;
+      ["melee", "ranged"].map(k => pill("data-prod", k, n.prod === k, `${TYPE_LABEL[k]} <small>${(CFG.cost[k] / (CFG.resPerMin / 60)).toFixed(1)}초마다 1명</small>`, TYPE_DOT[k])).join("") + `</div>`;
   }
   h += `<div class="prow"><span class="k">출격</span>` +
     ["melee", "ranged"].map(k => pill("data-send", k, n.send[k], TYPE_LABEL[k], TYPE_DOT[k])).join("") +
