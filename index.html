@@ -95,17 +95,18 @@ h2{font-size:20px}
 #board{position:absolute;inset:0;width:100%;height:100%;touch-action:none;display:block}
 .bfoot{display:flex;flex-direction:column;gap:8px;padding-block:8px;background:var(--panel);padding-bottom:max(8px,env(safe-area-inset-bottom,0px))}
 .frow{display:flex;align-items:center;gap:12px}
-.npanel{height:112px;overflow:hidden;background:var(--table);border:1px solid var(--line);border-radius:12px;padding:8px 10px;display:flex;flex-direction:column;gap:6px;font-size:13px}
+.npanel{height:142px;overflow:hidden;background:var(--table);border:1px solid var(--line);border-radius:12px;padding:8px 10px;display:flex;flex-direction:column;gap:6px;font-size:13px}
 .npanel .hint{color:var(--ink-dim);line-height:1.6;margin:0}
 .npanel .hint b{color:var(--ink);font-weight:400}
-.prow{display:flex;align-items:center;gap:6px;flex-wrap:wrap;min-width:0}
-.prow .k{width:30px;color:var(--ink-dim);font-size:12px;flex:none}
+.prow{display:flex;align-items:center;gap:4px;flex-wrap:wrap;min-width:0}
+.prow .k{width:28px;color:var(--ink-dim);font-size:12px;flex:none}
 .prow .nm{font-family:var(--font-display);font-size:16px}
 .prow .gar{color:var(--ink-dim);font-variant-numeric:tabular-nums}
-.pill{padding:4px 10px;border-radius:999px;border:1px solid var(--line);background:var(--panel);font-size:13px;display:inline-flex;align-items:center;gap:5px}
+.pill{padding:3px 7px;border-radius:999px;border:1px solid var(--line);background:var(--panel);font-size:12px;display:inline-flex;align-items:center;gap:5px}
 .pill[aria-pressed="true"]{border-color:var(--gold);background:#3a3220}
 .pill[aria-pressed="false"]{opacity:.55}
-.pill .dot{width:9px;height:9px;border-radius:50%;flex:none}
+.pill small{font-size:10.5px;opacity:.8}
+.pill .dot{width:8px;height:8px;border-radius:50%;flex:none}
 .pill.cut{border-color:var(--p2);color:#f3b1a6}
 .skill{position:relative;width:56px;height:56px;border-radius:16px;background:var(--table);border:2px solid var(--gold);display:grid;place-items:center;overflow:hidden;flex:none}
 .skill:disabled{border-color:var(--line);cursor:default}
@@ -150,9 +151,9 @@ h2{font-size:20px}
       <div class="avatar" aria-hidden="true">영</div>
       <div class="who"><b>XYZ 영주</b><small id="lvl">Lv.1 · 아르덴 왕국</small></div>
       <div class="wallet">
-        <span class="chip"><i style="background:var(--gold)"></i><span id="gold">0</span></span>
-        <span class="chip"><i style="background:#8fd0e6"></i>120</span>
-        <span class="chip"><i style="background:var(--ok)"></i>30/30</span>
+        <span class="chip" title="골드: 도시 승리 보상"><i style="background:var(--gold)"></i>골드 <span id="gold">0</span></span>
+        <span class="chip" title="보석(목업)"><i style="background:#8fd0e6"></i>보석 120</span>
+        <span class="chip" title="행동력(목업)"><i style="background:var(--ok)"></i>행동력 30</span>
       </div>
     </header>
 
@@ -176,7 +177,7 @@ h2{font-size:20px}
       </div>
       <h2>무기 슬롯</h2>
       <div class="slots">
-        <div class="slot locked"><svg class="glyph" viewBox="0 0 24 24"><rect x="5" y="4" width="14" height="16" rx="3" fill="none" stroke="currentColor" stroke-width="2"/></svg>탱커<small>프로빈스 2</small></div>
+        <div class="slot"><svg class="glyph" viewBox="0 0 24 24"><rect x="5" y="4" width="14" height="16" rx="3" fill="none" stroke="currentColor" stroke-width="2"/></svg>탱커<small>장착</small></div>
         <div class="slot"><svg class="glyph" viewBox="0 0 24 24"><circle cx="12" cy="12" r="7" fill="currentColor"/></svg>근거리<small>장착</small></div>
         <div class="slot"><svg class="glyph" viewBox="0 0 24 24"><path d="M12 3l8 9-8 9-8-9z" fill="currentColor"/></svg>원거리<small>장착</small></div>
       </div>
@@ -273,8 +274,9 @@ h2{font-size:20px}
    ========================================================= */
 const CFG = {
   resPerMin: 60,                 // 베이스 1곳의 분당 자원
-  cost: { melee: 1, ranged: 1.5 },
+  cost: { tank: 2, melee: 1, ranged: 1.5 },
   unit: {
+    tank:   { hp: 16, atk: 2, def: 2, spd: 34 },
     melee:  { hp: 10, atk: 4, def: 1, spd: 46 },
     ranged: { hp: 6,  atk: 3, def: 0, spd: 42, range: 62, cd: 1.0 },
     hero:   { hp: 60, atk: 8, def: 3, spd: 40 }
@@ -283,7 +285,9 @@ const CFG = {
   gateHold: 3,
   turret: { range: 74, cd: 0.6 },
   skill: { dur: 6, cd: 25, atk: 2, spd: 1.5 },
-  heroRespawn: 15
+  heroRespawn: 15,
+  // 상성 배율: 공격 병종 → 수비 병종 (탱커 > 근거리 > 원거리 > 탱커)
+  mult: { tank: { melee: 1.5 }, melee: { ranged: 1.5 }, ranged: { tank: 2.5 } }
 };
 const NODE = {
   base:   { r: 19, cap: 40, def: 0, name: "베이스" },
@@ -301,17 +305,17 @@ const W = 360, H = 520;
    n: [x, y, type, owner, garrison, turretLevel]
    ========================================================= */
 const MAPS = [
-  { name: "갈대 나루", biome: "plain", river: [[0,262],[90,250],[180,268],[270,252],[360,264]], aiMul: 0.9,
+  { name: "갈대 나루", biome: "plain", river: [[0,262],[90,250],[180,268],[270,252],[360,264]], aiMul: 0.9, aiGap: 1.6,
     blurb: "강을 건너는 길은 나루터 관문과 서쪽 여울뿐",
     n: [[180,470,"base",1,10],[60,60,"base",2,10],[300,60,"base",3,10],[80,350,"tower",0,8],[280,350,"tower",0,8],
         [180,262,"gate",0,6],[55,195,"base",0,10],[305,195,"base",0,10],[180,140,"fort",0,12],[180,385,"turret",0,6,1],[180,40,"tower",0,14]],
     e: [[0,9],[0,3],[0,4],[9,3],[9,4],[9,5],[4,5],[3,6],[5,8],[5,7],[6,1],[6,8],[7,2],[8,1],[8,2],[1,10],[2,10],[8,10]] },
-  { name: "쌍둥이 다리", biome: "plain", river: [[0,250],[120,262],[240,240],[360,256]], aiMul: 1.0,
+  { name: "쌍둥이 다리", biome: "plain", river: [[0,250],[120,262],[240,240],[360,256]], aiMul: 1.15, aiGap: 1.2,
     blurb: "두 다리를 누가 쥐느냐의 싸움",
     n: [[180,480,"base",1,10],[50,70,"base",2,12],[310,70,"base",3,12],[180,400,"turret",0,8,2],[70,370,"tower",0,8],[290,370,"tower",0,8],
         [100,252,"gate",0,7],[260,248,"gate",0,7],[180,175,"fort",0,14],[180,318,"base",0,10],[75,150,"tower",0,9],[285,150,"tower",0,9],[180,60,"base",0,14]],
     e: [[0,3],[0,4],[0,5],[3,9],[4,9],[5,9],[4,6],[5,7],[9,6],[9,7],[6,10],[7,11],[6,8],[7,8],[10,1],[11,2],[8,12],[12,1],[12,2],[10,8],[11,8]] },
-  { name: "잿빛 고개", biome: "volcano", river: null, aiMul: 1.15,
+  { name: "잿빛 고개", biome: "volcano", river: null, aiMul: 1.3, aiGap: 1.0,
     blurb: "한가운데 3레벨 포탑이 길목을 지킨다",
     n: [[180,480,"base",1,10],[60,60,"base",2,12],[300,60,"base",3,12],[75,410,"tower",0,8],[285,410,"tower",0,8],[180,360,"base",0,10],
         [180,268,"turret",0,10,3],[58,262,"gate",0,8],[302,262,"fort",0,12],[100,160,"base",0,10],[260,160,"base",0,10],[180,110,"tower",0,14]],
@@ -384,106 +388,110 @@ $("start").onclick = () => startBattle(selectedCity);
 let G = null;          // current game
 let speed = 1, raf = 0, last = 0;
 const autoplay = location.hash === "#autoplay";
+const TYPES = ["tank", "melee", "ranged"];
 
 function startBattle(idx) {
   const m = MAPS[idx];
   const nodes = m.n.map((d, i) => ({
     id: i, x: d[0], y: d[1], type: d[2], owner: d[3],
-    g: { melee: d[4], ranged: 0 }, dmg: 0, res: 0,
-    prod: "melee", link: null, sendT: 0, lvl: d[5] || 0, shootT: 0, flash: 0,
-    send: { melee: true, ranged: true }, sendHero: true
+    g: { tank: 0, melee: d[4], ranged: 0 }, dmg: 0, res: 0,
+    prod: "melee", link: null, sendT: 0, lvl: d[5] || 0, shootT: 0, flash: 0, shake: 0,
+    send: { tank: true, melee: true, ranged: true }, sendHero: true
   }));
   const adj = nodes.map(() => []);
   m.e.forEach(([a, b]) => { adj[a].push(b); adj[b].push(a); });
   G = {
-    idx, map: m, nodes, adj, units: [], shots: [], puffs: [],
+    idx, map: m, nodes, adj, units: [], shots: [], fx: [],
     t: 0, over: false, aiT: { 2: 0.8, 3: 1.6 },
     hero: { hp: CFG.unit.hero.hp, state: "node", node: 0, respawn: 0 },
-    skillT: 0, skillCd: 0, sel: null, cuts: [], shake: null, panelKey: "",
-    stats: { prod: 0, cap: 0 }, toastT: 6
+    skillT: 0, skillCd: 0, sel: null, inspect: null, cuts: [], shake: null, panelKey: "",
+    stats: { prod: 0, cap: 0 }, toastT: 6, deco: makeDeco(m, idx)
   };
   $("lobby").hidden = true; $("battle").hidden = false; $("result").hidden = true; $("sheet").hidden = true;
   $("bname").textContent = `도시 ${idx+1} · ${m.name}`;
-  showToast("내 거점(파란색)을 탭해 선택한 뒤, 이웃 거점을 탭하면 병력이 이동합니다.<br>이동 중인 선을 탭하면 끊깁니다.");
+  showToast("내 거점(파란 깃발)을 탭해 선택한 뒤, 이웃 거점을 탭하면 병력이 이동합니다.<br>이동 중인 선을 탭하면 끊깁니다. 적 거점을 탭하면 정보가 보입니다.");
   resize();
   cancelAnimationFrame(raf); last = performance.now(); raf = requestAnimationFrame(loop);
 }
 function endToLobby() { cancelAnimationFrame(raf); G = null; $("battle").hidden = true; $("lobby").hidden = false; renderLobby(); }
 
 /* ---------- helpers ---------- */
-const total = n => n.g.melee + n.g.ranged + (heroAt(n) ? 1 : 0);
+const troops = n => n.g.tank + n.g.melee + n.g.ranged;
+const total = n => troops(n) + (heroAt(n) ? 1 : 0);
 const heroAt = n => G.hero.state === "node" && G.hero.node === n.id && n.owner === 1;
 const dist = (a, b) => Math.hypot(a.x - b.x, a.y - b.y);
-function forts(owner) { return Math.min(2, G.nodes.filter(n => n.type === "fort" && n.owner === owner).length); }
+function forts(owner) { return owner === 0 ? 0 : Math.min(2, G.nodes.filter(n => n.type === "fort" && n.owner === owner).length); }
 function stat(owner, type) {
   const s = CFG.unit[type];
   const boost = owner === 1 && G.skillT > 0;
-  return {
-    hp: s.hp,
-    atk: s.atk + (boost ? CFG.skill.atk : 0),
-    def: s.def + forts(owner),
-    spd: s.spd * (boost ? CFG.skill.spd : 1)
-  };
+  return { hp: s.hp, atk: s.atk + (boost ? CFG.skill.atk : 0), def: s.def + forts(owner), spd: s.spd * (boost ? CFG.skill.spd : 1) };
+}
+/* one hit: (공격 − 방어, 최소 1) × 상성 배율 */
+function dmgOf(aType, dType, atk, def) {
+  const m = (CFG.mult[aType] && CFG.mult[aType][dType]) || 1;
+  return Math.ceil(Math.max(1, atk - def) * m);
 }
 function unitPos(u) { const a = G.nodes[u.from], b = G.nodes[u.to], k = u.d / u.len; return { x: a.x + (b.x - a.x) * k, y: a.y + (b.y - a.y) * k }; }
 function frontType(n) {
+  if (n.g.tank > 0) return "tank";
   if (n.g.melee > 0) return "melee";
   if (heroAt(n)) return "hero";
   if (n.g.ranged > 0) return "ranged";
   return null;
 }
 function killHero() { G.hero.state = "dead"; G.hero.respawn = CFG.heroRespawn; G.hero.hp = 0; }
-function puff(x, y, c) { for (let i = 0; i < 5; i++) G.puffs.push({ x, y, vx: (Math.random()-.5)*50, vy: (Math.random()-.5)*50, t: .35, c }); }
+function spark(x, y) { G.fx.push({ k: "spark", x, y, t: .28 }); }
+function fall(type, owner, x, y, flip) { G.fx.push({ k: "fall", type, owner, x, y, flip, t: .6 }); }
 
 /* damage to a node's front defender (ranged fire, turrets) */
 function hitNode(n, dmg) {
   const f = frontType(n); if (!f) return;
-  if (f === "hero") { G.hero.hp -= dmg; if (G.hero.hp <= 0) { killHero(); puff(n.x, n.y, COLORS[1]); } return; }
+  n.shake = .15;
+  if (f === "hero") { G.hero.hp -= dmg; if (G.hero.hp <= 0) { killHero(); fall("hero", 1, n.x - 10, n.y + 4, false); } return; }
   n.dmg += dmg;
-  if (n.dmg >= CFG.unit[f].hp) { n.g[f]--; n.dmg = 0; puff(n.x, n.y, COLORS[n.owner]); }
+  if (n.dmg >= CFG.unit[f].hp) { n.g[f]--; n.dmg = 0; fall(f, n.owner, n.x + 10, n.y + 4, true); }
 }
 /* damage to a moving unit */
 function hitUnit(u, dmg) {
   u.hp -= dmg;
   if (u.type === "hero") G.hero.hp = Math.max(0, u.hp);
-  if (u.hp <= 0) { u.dead = true; const p = unitPos(u); puff(p.x, p.y, COLORS[u.owner]); if (u.type === "hero") killHero(); }
+  if (u.hp <= 0 && !u.dead) {
+    u.dead = true; const p = unitPos(u);
+    fall(u.type, u.owner, p.x, p.y, G.nodes[u.to].x < G.nodes[u.from].x);
+    if (u.type === "hero") killHero();
+  }
 }
-/* simultaneous-exchange duel. returns rounds to kill */
-function duelRounds(hpA, atkA, defB) { return Math.ceil(hpA / Math.max(1, atkA - defB)); }
 
-/* unit arrives at enemy/neutral node */
+/* unit arrives at enemy/neutral node: exchange blows with the front defender until one side is gone */
 function assault(n, u) {
   const us = stat(u.owner, u.type);
+  n.shake = .3; spark(n.x + (Math.random() - .5) * 14, n.y - 6);
   while (!u.dead) {
     const f = frontType(n);
     if (!f) { capture(n, u); return; }
     const ds = f === "hero" ? stat(1, "hero") : stat(n.owner, f);
-    const dDef = ds.def + NODE[n.type].def - (n.owner === 0 ? forts(0) : 0);
+    const dDef = ds.def + NODE[n.type].def;
     const dHp = f === "hero" ? G.hero.hp : CFG.unit[f].hp - n.dmg;
-    const a2d = Math.max(1, us.atk - dDef), d2a = Math.max(1, ds.atk - us.def);
+    const a2d = dmgOf(u.type, f, us.atk, dDef), d2a = dmgOf(f, u.type, ds.atk, us.def);
     const ka = Math.ceil(dHp / a2d), kd = Math.ceil(u.hp / d2a);
-    if (ka < kd) {
-      u.hp -= ka * d2a;
-      if (f === "hero") killHero(); else { n.g[f]--; n.dmg = 0; }
-    } else if (kd < ka) {
+    const defenderDies = () => { if (f === "hero") { killHero(); fall("hero", 1, n.x - 10, n.y + 4, false); } else { n.g[f]--; n.dmg = 0; fall(f, n.owner, n.x + 10, n.y + 4, true); } };
+    if (ka < kd) { u.hp -= ka * d2a; defenderDies(); }
+    else if (kd < ka) {
       if (f === "hero") G.hero.hp -= kd * a2d; else n.dmg += kd * a2d;
-      u.dead = true; if (u.type === "hero") killHero();
-    } else {
-      if (f === "hero") killHero(); else { n.g[f]--; n.dmg = 0; }
-      u.dead = true; if (u.type === "hero") killHero();
-    }
+      u.dead = true; fall(u.type, u.owner, n.x - 4, n.y + 8, false); if (u.type === "hero") killHero();
+    } else { defenderDies(); u.dead = true; fall(u.type, u.owner, n.x - 4, n.y + 8, false); if (u.type === "hero") killHero(); }
     n.flash = .15;
   }
   if (u.type === "hero") G.hero.hp = Math.max(0, u.hp);
-  puff(n.x, n.y, COLORS[u.owner]);
 }
 function capture(n, u) {
-  n.owner = u.owner; n.g = { melee: 0, ranged: 0 }; n.dmg = 0; n.res = 0; n.link = null; n.sendT = 0;
+  n.owner = u.owner; n.g = { tank: 0, melee: 0, ranged: 0 }; n.dmg = 0; n.res = 0; n.link = null; n.sendT = 0;
+  n.send = { tank: true, melee: true, ranged: true }; n.sendHero = true;
   if (u.type === "hero") { G.hero.state = "node"; G.hero.node = n.id; G.hero.hp = u.hp; }
   else n.g[u.type] = 1;
   u.dead = true; n.flash = .4;
   if (u.owner === 1) G.stats.cap++;
-  // links into this node from same owner stay valid; links from others pointing here are kept (they'll attack)
+  if (G.inspect === n.id && n.owner === 1) G.inspect = null;
 }
 function arrive(u) {
   const n = G.nodes[u.to];
@@ -492,6 +500,26 @@ function arrive(u) {
     else n.g[u.type]++;
     u.dead = true;
   } else assault(n, u);
+}
+
+/* how many attackers of `type` (current stats) it takes to clear node n — shown in the info panel */
+function estimate(n, type, boost) {
+  const g = { ...n.g }; let dmg = n.dmg, used = 0;
+  const a = CFG.unit[type], atk = a.atk + (boost ? CFG.skill.atk : 0), adef = a.def + forts(1);
+  const order = ["tank", "melee", "ranged"];
+  while (order.some(k => g[k] > 0) && used < 999) {
+    used++; let hp = a.hp;
+    while (hp > 0) {
+      const f = order.find(k => g[k] > 0); if (!f) break;
+      const d = CFG.unit[f], dDef = d.def + forts(n.owner) + NODE[n.type].def;
+      const a2d = dmgOf(type, f, atk, dDef), d2a = dmgOf(f, type, d.atk, adef);
+      const ka = Math.ceil((d.hp - dmg) / a2d), kd = Math.ceil(hp / d2a);
+      if (ka < kd) { hp -= ka * d2a; g[f]--; dmg = 0; }
+      else if (kd < ka) { dmg += kd * a2d; hp = 0; }
+      else { g[f]--; dmg = 0; hp = 0; }
+    }
+  }
+  return used;
 }
 
 /* =========================================================
@@ -511,14 +539,14 @@ function step(dt) {
     }
   }
 
-  // production
+  // production (bases only)
   for (const n of G.nodes) {
-    n.flash = Math.max(0, n.flash - dt);
+    n.flash = Math.max(0, n.flash - dt); n.shake = Math.max(0, n.shake - dt);
     if (n.type !== "base" || n.owner === 0) continue;
     const mul = n.owner === 1 ? 1 : G.map.aiMul;
     n.res += CFG.resPerMin / 60 * mul * dt;
     const c = CFG.cost[n.prod];
-    if (n.res >= c && n.g.melee + n.g.ranged < NODE.base.cap) {
+    if (n.res >= c && troops(n) < NODE.base.cap) {
       n.res -= c; n.g[n.prod]++; if (n.owner === 1) G.stats.prod++;
       if (n.owner !== 1) n.prod = aiPickProd(n.owner);
     } else if (n.res > c) n.res = c;
@@ -533,15 +561,15 @@ function step(dt) {
     const hold = n.type === "gate" ? CFG.gateHold : 0;
     let type = null;
     if (heroAt(n) && n.sendHero) type = "hero";
-    else if (n.g.melee + n.g.ranged > hold) {
-      const avail = ["melee", "ranged"].filter(k => n.send[k] && n.g[k] > 0).sort((a, b) => n.g[b] - n.g[a]);
+    else if (troops(n) > hold) {
+      const avail = TYPES.filter(k => n.send[k] && n.g[k] > 0).sort((a, b) => n.g[b] - n.g[a]);
       type = avail[0] || null;
     }
     if (!type) continue;
     const to = G.nodes[n.link];
-    const u = { owner: n.owner, type, from: n.id, to: to.id, d: NODE[n.type].r, len: dist(n, to), shootT: Math.random() * .5 };
+    const u = { owner: n.owner, type, from: n.id, to: to.id, d: NODE[n.type].r, len: dist(n, to), shootT: Math.random() * .5, ph: Math.random() * 6 };
     if (type === "hero") { u.hp = G.hero.hp; G.hero.state = "moving"; }
-    else { u.hp = CFG.unit[type].hp; n.g[type]--; if (type === frontType(n) || n.g[type] === 0) n.dmg = 0; }
+    else { u.hp = CFG.unit[type].hp; n.g[type]--; if (n.g[type] === 0) n.dmg = 0; }
     G.units.push(u);
   }
 
@@ -563,9 +591,11 @@ function step(dt) {
         if (b.dead || a === b || a.owner === b.owner || a.from !== b.to) continue;
         if (a.d + b.d < a.len - 2) continue;      // not met yet
         const sa = stat(a.owner, a.type), sb = stat(b.owner, b.type);
-        const ka = duelRounds(b.hp, sa.atk, sb.def), kb = duelRounds(a.hp, sb.atk, sa.def);
-        if (ka < kb) { hitUnit(a, ka * Math.max(1, sb.atk - sa.def)); hitUnit(b, 1e9); }
-        else if (kb < ka) { hitUnit(b, kb * Math.max(1, sa.atk - sb.def)); hitUnit(a, 1e9); }
+        const a2b = dmgOf(a.type, b.type, sa.atk, sb.def), b2a = dmgOf(b.type, a.type, sb.atk, sa.def);
+        const ka = Math.ceil(b.hp / a2b), kb = Math.ceil(a.hp / b2a);
+        const p = unitPos(a); spark(p.x, p.y);
+        if (ka < kb) { hitUnit(a, ka * b2a); hitUnit(b, 1e9); }
+        else if (kb < ka) { hitUnit(b, kb * a2b); hitUnit(a, 1e9); }
         else { hitUnit(a, 1e9); hitUnit(b, 1e9); }
         if (a.dead) break;
       }
@@ -582,14 +612,14 @@ function step(dt) {
     for (const v of G.units) { if (v.dead || v.owner === u.owner) continue; const q = unitPos(v), d = Math.hypot(q.x - p.x, q.y - p.y); if (d < bd) { bd = d; best = v; } }
     const s = stat(u.owner, "ranged");
     if (best) {
-      const q = unitPos(best); hitUnit(best, Math.max(1, s.atk - stat(best.owner, best.type).def));
-      G.shots.push({ x1: p.x, y1: p.y, x2: q.x, y2: q.y, t: .12, c: COLORS[u.owner] }); u.shootT = rs.cd;
+      const q = unitPos(best); hitUnit(best, dmgOf("ranged", best.type, s.atk, stat(best.owner, best.type).def));
+      G.shots.push({ x1: p.x, y1: p.y, x2: q.x, y2: q.y, t: .18, k: "arrow" }); u.shootT = rs.cd;
     } else {
       const tn = G.nodes[u.to];
       if (tn.owner !== u.owner && frontType(tn) && dist(p, tn) < rs.range) {
         const f = frontType(tn), ds = f === "hero" ? stat(1, "hero") : stat(tn.owner, f);
-        hitNode(tn, Math.max(1, s.atk - ds.def - NODE[tn.type].def));
-        G.shots.push({ x1: p.x, y1: p.y, x2: tn.x, y2: tn.y, t: .12, c: COLORS[u.owner] }); u.shootT = rs.cd;
+        hitNode(tn, dmgOf("ranged", f, s.atk, ds.def + NODE[tn.type].def));
+        G.shots.push({ x1: p.x, y1: p.y, x2: tn.x, y2: tn.y, t: .18, k: "arrow" }); u.shootT = rs.cd;
       }
     }
   }
@@ -605,9 +635,9 @@ function step(dt) {
     if (!targets.length) { n.shootT = .2; continue; }
     for (let i = 0; i < shooters && i < targets.length; i++) {
       const v = targets[i].v, q = unitPos(v);
-      const dmg = isTurret ? n.lvl : Math.max(1, stat(n.owner, "ranged").atk - stat(v.owner, v.type).def);
+      const dmg = isTurret ? n.lvl : dmgOf("ranged", v.type, stat(n.owner, "ranged").atk, stat(v.owner, v.type).def);
       hitUnit(v, dmg);
-      G.shots.push({ x1: n.x, y1: n.y, x2: q.x, y2: q.y, t: .12, c: isTurret ? "#ffe2a0" : COLORS[n.owner] });
+      G.shots.push({ x1: n.x, y1: n.y, x2: q.x, y2: q.y, t: .18, k: isTurret ? "bolt" : "arrow", h: isTurret ? 22 : 14 });
     }
     n.shootT = isTurret ? CFG.turret.cd : rs.cd;
   }
@@ -615,15 +645,14 @@ function step(dt) {
   G.units = G.units.filter(u => !u.dead);
   for (const s of G.shots) s.t -= dt; G.shots = G.shots.filter(s => s.t > 0);
   for (const c of G.cuts) c.t -= dt; G.cuts = G.cuts.filter(c => c.t > 0);
+  for (const f of G.fx) f.t -= dt; G.fx = G.fx.filter(f => f.t > 0);
   if (G.shake) { G.shake.t -= dt; if (G.shake.t <= 0) G.shake = null; }
   if (G.sel != null && G.nodes[G.sel].owner !== 1) G.sel = null;
-  for (const p of G.puffs) { p.t -= dt; p.x += p.vx * dt; p.y += p.vy * dt; } G.puffs = G.puffs.filter(p => p.t > 0);
 
-  // drop links whose source changed hands
   for (const n of G.nodes) if (n.owner === 0) n.link = null;
 
   // AI
-  for (const o of [2, 3]) { G.aiT[o] -= dt; if (G.aiT[o] <= 0) { G.aiT[o] = 1.3 + Math.random() * .6; aiThink(o, AI_STYLE[o]); } }
+  for (const o of [2, 3]) { G.aiT[o] -= dt; if (G.aiT[o] <= 0) { G.aiT[o] = G.map.aiGap + Math.random() * .5; aiThink(o, AI_STYLE[o]); } }
   if (autoplay) { G.aiT[1] = (G.aiT[1] || 0) - dt; if (G.aiT[1] <= 0) { G.aiT[1] = 1.2; aiThink(1, "aggressive"); if (G.skillCd <= 0) useSkill(); } }
 
   checkEnd();
@@ -632,8 +661,12 @@ function step(dt) {
 /* =========================================================
    AI
    ========================================================= */
-function aiPickProd(owner) { return Math.random() < (AI_STYLE[owner] === "aggressive" ? .75 : .5) ? "melee" : "ranged"; }
-function strength(n) { return n.g.melee * 1.1 + n.g.ranged + (heroAt(n) ? 7 : 0) + NODE[n.type].def * 2 + (n.type === "turret" ? n.lvl * 3 : 0); }
+function aiPickProd(owner) {
+  const r = Math.random();
+  if (AI_STYLE[owner] === "aggressive") return r < .55 ? "melee" : r < .78 ? "ranged" : "tank";
+  return r < .35 ? "ranged" : r < .65 ? "tank" : "melee";
+}
+function strength(n) { return n.g.tank * 1.8 + n.g.melee * 1.1 + n.g.ranged + (heroAt(n) ? 7 : 0) + NODE[n.type].def * 2 + (n.type === "turret" ? n.lvl * 3 : 0); }
 function frontierDist(owner) {
   const d = G.nodes.map(() => Infinity), q = [];
   G.nodes.forEach(n => { if (n.owner !== owner) { d[n.id] = 0; q.push(n.id); } });
@@ -646,15 +679,14 @@ function aiThink(owner, style) {
   const fd = frontierDist(owner);
   for (const n of G.nodes) {
     if (n.owner !== owner) continue;
-    const mine = n.g.melee + n.g.ranged + (heroAt(n) ? 6 : 0);
+    const mine = troops(n) + (heroAt(n) ? 6 : 0);
     const enemies = G.adj[n.id].map(i => G.nodes[i]).filter(m => m.owner !== owner);
     if (!enemies.length) {
-      // interior: push troops toward the front
       if (mine >= 3) { const nxt = G.adj[n.id].slice().sort((a, b) => fd[a] - fd[b])[0]; n.link = nxt; } else n.link = null;
       continue;
     }
     const threat = incoming(n);
-    if (!aggr && threat > mine * .6) { n.link = null; continue; }          // defensive: hold when attacked
+    if (!aggr && threat > mine * .6) { n.link = null; continue; }
     const minSend = aggr ? 5 : 11;
     let best = null, bs = -Infinity;
     for (const m of enemies) {
@@ -669,7 +701,7 @@ function aiThink(owner, style) {
     if (best && mine >= minSend) n.link = best.id;
     else if (n.link != null && G.nodes[n.link].owner !== owner) {
       const t = G.nodes[n.link];
-      if (strength(t) > mine * 1.4 + 3) n.link = null;   // retreat from losing fights
+      if (strength(t) > mine * 1.4 + 3) n.link = null;
     } else if (n.link != null && G.nodes[n.link].owner === owner && fd[n.link] >= fd[n.id]) n.link = null;
   }
 }
@@ -703,7 +735,7 @@ $("rback").onclick = endToLobby;
 $("quit").onclick = endToLobby;
 
 /* =========================================================
-   Rendering
+   Rendering — fixed tilted camera (2.5D), code-drawn pixel art
    ========================================================= */
 const cv = $("board"), cx = cv.getContext("2d");
 let view = { s: 1, ox: 0, oy: 0, dpr: 1 };
@@ -715,140 +747,294 @@ function resize() {
 }
 window.addEventListener("resize", () => { if (G) resize(); });
 
-function drawTerrain() {
-  const m = G.map;
-  cx.fillStyle = m.biome === "volcano" ? "#2f2a28" : "#2b3a31"; cx.fillRect(-40, -40, W + 80, H + 80);
-  // soft field patches
-  cx.fillStyle = m.biome === "volcano" ? "rgba(120,60,40,.18)" : "rgba(120,150,90,.12)";
-  for (let i = 0; i < 14; i++) { const x = (i * 97) % W, y = (i * 151) % H; cx.beginPath(); cx.ellipse(x, y, 46, 22, i, 0, Math.PI * 2); cx.fill(); }
+/* world (x,y) on the ground plane -> board coords; far rows are narrower and smaller */
+const PJ = { top: 50, ky: 0.9 };
+function P(x, y) { const k = y / H; return { x: W / 2 + (x - W / 2) * (0.86 + 0.14 * k), y: PJ.top + y * PJ.ky, s: 0.82 + 0.22 * k }; }
+
+/* colour helpers */
+function shade(hex, f) {
+  const n = parseInt(hex.slice(1), 16); let r = n >> 16, g = (n >> 8) & 255, b = n & 255;
+  const m = v => Math.max(0, Math.min(255, Math.round(f < 0 ? v * (1 + f) : v + (255 - v) * f)));
+  return `rgb(${m(r)},${m(g)},${m(b)})`;
+}
+const TEAM = o => o ? COLORS[o] : "#8a8476";
+
+/* ---- pixel sprites (facing right). T/t = team colour (palette-swapped per faction) ---- */
+const SPR = {
+  tank: { w: 10, body: ["..KKKK....", ".KMMMMK...", ".KMEEMK...", ".KMMMMKKK.", "KTTTTTKMMK", "KTTTTTKMMK", "KTTTTTKMMK", "KTTTTTKMMK", ".KtKtKKKKK"],
+          legs: [[".KB..BK...", ".BB..BB..."], ["KB....BK..", "BB....BB.."]] },
+  melee: { w: 9, body: ["...KKK...", "..KMMMK..", "..KSSEK.M", "..KSSSK.M", "KK.KTK..M", "KTtKTTTKS", "KTtKTTTK.", "KTtKTTTK.", "KK.KtKtK."],
+           legs: [["...KB.BK.", "...BB.BB."], ["..KB..BK.", "..BB...BB"]] },
+  ranged: { w: 9, body: ["...KKK...", "..KTTTKW.", "..KSSEK.W", "..KSSSK.W", "..KtTtK.W", ".KTTTTSmW", ".KTTTTK.W", ".KTTTTK.W", "..KtKtKW."],
+            legs: [["...KB.BK.", "...BB.BB."], ["..KB..BK.", "..BB...BB"]] },
+  hero: { w: 11, body: ["...G.G.G...", "...GGGGG...", "..KKKKKKK..", "..KSSSSEK.M", "..KSSSSSK.M", ".GKTTTTTK.M", "GGKTTMTTKSM", "GGKTTMTTK..", "GGKTTTTTK..", "GG.KtKtK..."],
+          legs: [["G..KB.BK...", "...BB.BB..."], ["G.KB...BK..", "..BB...BB.."]] }
+};
+const PAL = { K: "#1b1f1d", S: "#f0c8a0", E: "#1b1f1d", M: "#c9d1d6", m: "#7d878d", W: "#9a6a33", B: "#3b2e25", G: "#e0b04a" };
+const sprCache = new Map();
+function sprite(type, frame, owner) {
+  const key = type + frame + owner;
+  if (sprCache.has(key)) return sprCache.get(key);
+  const def = SPR[type], rows = def.body.concat(def.legs[frame]), c = document.createElement("canvas");
+  c.width = def.w; c.height = rows.length;
+  const g = c.getContext("2d"), pal = { ...PAL, T: TEAM(owner), t: shade(TEAM(owner), -.35) };
+  rows.forEach((row, y) => [...row].forEach((ch, x) => { if (ch !== ".") { g.fillStyle = pal[ch]; g.fillRect(x, y, 1, 1); } }));
+  sprCache.set(key, c); return c;
+}
+function drawSprite(type, owner, bx, by, scale, flip, frame = 0, rot = 0, alpha = 1) {
+  const img = sprite(type, frame, owner), ps = (type === "hero" ? 1.65 : 1.45) * scale;
+  const w = img.width * ps, h = img.height * ps;
+  cx.save(); cx.translate(bx, by); if (rot) cx.rotate(rot); if (flip) cx.scale(-1, 1);
+  cx.globalAlpha = alpha;
+  cx.fillStyle = "rgba(0,0,0,.28)"; cx.beginPath(); cx.ellipse(0, 0, w * .38, w * .14, 0, 0, Math.PI * 2); cx.fill();
+  cx.drawImage(img, -w / 2, -h, w, h);
+  cx.restore();
+}
+
+/* ---- buildings: pixel blocks on a 2-unit grid, anchored at the ground point ---- */
+const BLD = { base: { hw: 10, top: -26 }, tower: { hw: 5, top: -27 }, fort: { hw: 12, top: -14 }, turret: { hw: 7, top: -15 }, gate: { hw: 12, top: -17 } };
+function drawBuilding(n, p) {
+  const u = 2 * p.s, sh = n.shake > 0 ? Math.sin(G.t * 90) * 1.3 : 0;
+  const tm = TEAM(n.owner), tmD = shade(tm, -.35);
+  const ST = n.owner ? "#a3a397" : "#8f8e85", STD = "#64665d", STL = "#c6c5b6", DK = "#2a2620", WD = "#8a5a2b", WDD = "#5e3b1c", MT = "#c9d1d6";
+  const R = (x, y, w, h, c) => { cx.fillStyle = c; cx.fillRect(p.x + sh + x * u, p.y + y * u, w * u + .4, h * u + .4); };
+  const b = BLD[n.type];
+  cx.fillStyle = "rgba(0,0,0,.3)"; cx.beginPath(); cx.ellipse(p.x, p.y, (b.hw + 2) * u, (b.hw + 2) * u * .36, 0, 0, Math.PI * 2); cx.fill();
+  const flag = (x, y) => { R(x, y, 1, 7, DK); R(x + 1, y, 4, 3, tm); R(x + 1, y + 3, 2, 1, tmD); };
+  if (n.type === "base") {
+    R(-10, -10, 20, 10, ST); R(-10, -1, 20, 1, STD);
+    for (let i = 0; i < 5; i++) R(-10 + i * 4, -12, 2, 2, ST);
+    R(-5, -17, 10, 7, STL); R(-5, -11, 10, 1, STD);
+    R(-6, -19, 12, 2, tm); R(-4, -21, 8, 2, tm); R(-2, -22, 4, 1, tmD);
+    R(-2, -6, 4, 6, DK); R(-1, -7, 2, 1, DK);
+    R(-8, -7, 2, 2, DK); R(6, -7, 2, 2, DK);
+    flag(0, -29);
+  } else if (n.type === "tower") {
+    R(-4, -17, 8, 17, ST); R(-4, -1, 8, 1, STD); R(2, -17, 2, 16, STD);
+    R(-1, -13, 2, 3, DK); R(-1, -7, 2, 3, DK);
+    R(-5, -19, 10, 2, tm); R(-4, -21, 8, 2, tm); R(-3, -23, 6, 2, tm); R(-2, -25, 4, 2, tmD); R(-1, -26, 2, 1, tmD);
+    flag(0, -33);
+  } else if (n.type === "fort") {
+    R(-11, -7, 22, 7, ST); R(-11, -1, 22, 1, STD);
+    R(-12, -11, 5, 11, STL); R(7, -11, 5, 11, STL);
+    R(-12, -13, 2, 2, STL); R(-9, -13, 2, 2, STL); R(7, -13, 2, 2, STL); R(10, -13, 2, 2, STL);
+    for (let i = 0; i < 4; i++) R(-6 + i * 4, -9, 2, 2, ST);
+    R(-2, -6, 4, 4, tm); R(-1, -2, 2, 1, tm); R(-1, -5, 2, 1, STL);
+  } else if (n.type === "turret") {
+    R(-6, -6, 2, 6, WD); R(4, -6, 2, 6, WD); R(-1, -6, 2, 6, WDD);
+    R(-7, -8, 14, 2, WDD);
+    R(-4, -11, 8, 3, WD); R(-7, -12, 14, 1, DK); R(-7, -13, 1, 1, DK); R(6, -13, 1, 1, DK);
+    R(-1, -15, 2, 4, MT);
+    R(5, -16, 1, 5, DK); R(6, -16, 3, 2, tm);
+  } else if (n.type === "gate") {
+    R(-12, -14, 5, 14, ST); R(7, -14, 5, 14, ST); R(-12, -1, 5, 1, STD); R(7, -1, 5, 1, STD);
+    R(-13, -17, 26, 3, STL); for (let i = 0; i < 6; i++) R(-13 + i * 5, -19, 2, 2, STL);
+    for (let i = 0; i < 5; i++) R(-6 + i * 3, -14, 1, 14, "#3b3f40");
+    R(-7, -9, 14, 1, "#3b3f40");
+    R(-2, -16, 4, 4, tm); R(-1, -12, 2, 1, tmD);
+  }
+  return p.y + b.top * u;
+}
+
+/* ---- scenery ---- */
+function makeDeco(m, idx) {
+  let seed = 97 + idx * 131; const rnd = () => (seed = (seed * 16807) % 2147483647) / 2147483647;
+  const nodes = m.n.map(d => ({ x: d[0], y: d[1] })), out = [];
+  const segD = (p, a, b) => { const dx = b.x - a.x, dy = b.y - a.y, l = dx * dx + dy * dy; let k = ((p.x - a.x) * dx + (p.y - a.y) * dy) / l; k = Math.max(0, Math.min(1, k)); return Math.hypot(p.x - a.x - dx * k, p.y - a.y - dy * k); };
+  for (let i = 0; i < 70 && out.length < 26; i++) {
+    const p = { x: 8 + rnd() * 344, y: 8 + rnd() * 504 };
+    if (nodes.some(n => Math.hypot(n.x - p.x, n.y - p.y) < 34)) continue;
+    if (m.e.some(([a, b]) => segD(p, nodes[a], nodes[b]) < 14)) continue;
+    if (m.river && m.river.some((q, j) => j && segD(p, { x: m.river[j - 1][0], y: m.river[j - 1][1] }, { x: q[0], y: q[1] }) < 16)) continue;
+    out.push({ ...p, k: m.biome === "volcano" ? (rnd() < .7 ? "rock" : "vent") : (rnd() < .8 ? "tree" : "rock"), v: rnd() });
+  }
+  return out;
+}
+function drawDeco(d, p) {
+  const u = 2 * p.s, R = (x, y, w, h, c) => { cx.fillStyle = c; cx.fillRect(p.x + x * u, p.y + y * u, w * u + .4, h * u + .4); };
+  cx.fillStyle = "rgba(0,0,0,.25)"; cx.beginPath(); cx.ellipse(p.x, p.y, 4 * u, 1.4 * u, 0, 0, Math.PI * 2); cx.fill();
+  if (d.k === "tree") {
+    const g1 = d.v < .5 ? "#3f6b3a" : "#4c7a3f", g2 = d.v < .5 ? "#2f5530" : "#3a6232";
+    R(-1, -3, 2, 3, "#5e3b1c"); R(-4, -7, 8, 4, g2); R(-3, -10, 6, 3, g1); R(-2, -12, 4, 2, g1); R(-3, -7, 3, 2, g1);
+  } else if (d.k === "rock") {
+    R(-3, -3, 6, 3, "#6d6c66"); R(-2, -5, 4, 2, "#85847c"); R(1, -3, 2, 3, "#55544f");
+  } else {
+    R(-4, -3, 8, 3, "#3a2f2b"); R(-2, -5, 4, 2, "#4a3d37"); R(-1, -5, 2, 1, "#e46a2e"); R(-1, -4, 2, 1, "#f2a03d");
+  }
+}
+function drawGround() {
+  const m = G.map, volc = m.biome === "volcano";
+  const c0 = P(0, 0), c1 = P(W, 0), c2 = P(W, H), c3 = P(0, H);
+  // table edge (gives the slab some thickness)
+  cx.fillStyle = volc ? "#1d1715" : "#17201a";
+  cx.beginPath(); cx.moveTo(c3.x, c3.y); cx.lineTo(c2.x, c2.y); cx.lineTo(c2.x, c2.y + 12); cx.lineTo(c3.x, c3.y + 12); cx.closePath(); cx.fill();
+  const gr = cx.createLinearGradient(0, c0.y, 0, c3.y);
+  gr.addColorStop(0, volc ? "#2c2422" : "#2a3a2e"); gr.addColorStop(1, volc ? "#4a3934" : "#3f5a43");
+  cx.fillStyle = gr; cx.beginPath(); cx.moveTo(c0.x, c0.y); cx.lineTo(c1.x, c1.y); cx.lineTo(c2.x, c2.y); cx.lineTo(c3.x, c3.y); cx.closePath(); cx.fill();
+  cx.save(); cx.clip();
+  // ground patches
+  cx.fillStyle = volc ? "rgba(140,70,45,.18)" : "rgba(150,180,100,.12)";
+  for (let i = 0; i < 16; i++) { const q = P((i * 97) % W, (i * 151) % H); cx.beginPath(); cx.ellipse(q.x, q.y, 42 * q.s, 15 * q.s, 0, 0, Math.PI * 2); cx.fill(); }
   if (m.river) {
-    cx.strokeStyle = "#3a6f8f"; cx.lineWidth = 16; cx.lineCap = "round"; cx.lineJoin = "round";
-    cx.beginPath(); m.river.forEach((p, i) => i ? cx.lineTo(...p) : cx.moveTo(...p)); cx.stroke();
-    cx.strokeStyle = "rgba(180,220,240,.25)"; cx.lineWidth = 2; cx.setLineDash([6, 10]);
-    cx.beginPath(); m.river.forEach((p, i) => i ? cx.lineTo(p[0], p[1] - 3) : cx.moveTo(p[0], p[1] - 3)); cx.stroke(); cx.setLineDash([]);
+    const pts = m.river.map(r => P(r[0], r[1]));
+    cx.lineCap = "round"; cx.lineJoin = "round";
+    cx.strokeStyle = "#2b5670"; cx.lineWidth = 19; cx.beginPath(); pts.forEach((q, i) => i ? cx.lineTo(q.x, q.y + 2) : cx.moveTo(q.x, q.y + 2)); cx.stroke();
+    cx.strokeStyle = "#3a7393"; cx.lineWidth = 15; cx.beginPath(); pts.forEach((q, i) => i ? cx.lineTo(q.x, q.y) : cx.moveTo(q.x, q.y)); cx.stroke();
+    cx.strokeStyle = "rgba(190,230,245,.3)"; cx.lineWidth = 1.5; cx.setLineDash([6, 10]); cx.lineDashOffset = -G.t * 8;
+    cx.beginPath(); pts.forEach((q, i) => i ? cx.lineTo(q.x, q.y - 3) : cx.moveTo(q.x, q.y - 3)); cx.stroke(); cx.setLineDash([]);
   }
-  if (m.biome === "volcano") {
-    cx.strokeStyle = "rgba(230,110,50,.35)"; cx.lineWidth = 2;
-    [[20,300,120,330,140,290],[230,330,300,300,350,340],[150,200,200,230,250,205]].forEach(c => { cx.beginPath(); cx.moveTo(c[0], c[1]); cx.lineTo(c[2], c[3]); cx.lineTo(c[4], c[5]); cx.stroke(); });
+  if (volc) {
+    cx.lineWidth = 2.5; cx.lineCap = "round";
+    [[20,300,120,330,140,290],[230,330,300,300,350,340],[150,200,200,230,250,205],[40,470,90,440,130,500]].forEach(c => {
+      const a = P(c[0], c[1]), b = P(c[2], c[3]), d = P(c[4], c[5]);
+      cx.strokeStyle = `rgba(240,120,50,${.35 + Math.sin(G.t * 2 + c[0]) * .12})`;
+      cx.beginPath(); cx.moveTo(a.x, a.y); cx.lineTo(b.x, b.y); cx.lineTo(d.x, d.y); cx.stroke();
+    });
   }
+  cx.restore();
+  // far haze
+  const hz = cx.createLinearGradient(0, c0.y - 10, 0, c0.y + 70);
+  hz.addColorStop(0, "rgba(24,32,29,.85)"); hz.addColorStop(1, "rgba(24,32,29,0)");
+  cx.fillStyle = hz; cx.fillRect(c0.x - 10, c0.y - 10, c1.x - c0.x + 20, 80);
 }
-function shape(n, r) {
-  cx.beginPath();
-  if (n.type === "base") cx.arc(n.x, n.y, r, 0, Math.PI * 2);
-  else if (n.type === "tower") cx.roundRect(n.x - r, n.y - r, r * 2, r * 2, 4);
-  else if (n.type === "fort") { for (let i = 0; i < 6; i++) { const a = Math.PI / 6 + i * Math.PI / 3; cx.lineTo(n.x + Math.cos(a) * r * 1.1, n.y + Math.sin(a) * r * 1.1); } cx.closePath(); }
-  else if (n.type === "turret") { cx.moveTo(n.x, n.y - r * 1.2); cx.lineTo(n.x + r * 1.1, n.y + r * .8); cx.lineTo(n.x - r * 1.1, n.y + r * .8); cx.closePath(); }
-  else if (n.type === "gate") cx.roundRect(n.x - r * 1.5, n.y - r * .8, r * 3, r * 1.6, 3);
-}
+
+/* ---- main draw ---- */
 function draw() {
-  const { s, ox, oy, dpr } = view;
+  const { s, ox, oy, dpr } = view, t = G.t;
   cx.setTransform(dpr, 0, 0, dpr, 0, 0);
-  cx.fillStyle = "#24302b"; cx.fillRect(0, 0, cv.width, cv.height);
+  cx.fillStyle = "#18201d"; cx.fillRect(0, 0, cv.width, cv.height);
   cx.setTransform(dpr * s, 0, 0, dpr * s, dpr * ox, dpr * oy);
-  drawTerrain();
+  cx.imageSmoothingEnabled = false;
+  drawGround();
+  const PN = G.nodes.map(n => P(n.x, n.y));
 
   // roads
   cx.lineCap = "round";
-  for (const [a, b] of G.map.e) { const A = G.nodes[a], B = G.nodes[b]; cx.strokeStyle = "rgba(236,229,207,.16)"; cx.lineWidth = 5; cx.beginPath(); cx.moveTo(A.x, A.y); cx.lineTo(B.x, B.y); cx.stroke(); }
-
-  // selection: highlight reachable neighbours along their roads
-  const t = G.t;
-  if (G.sel != null) {
-    const A = G.nodes[G.sel];
-    for (const j of G.adj[A.id]) {
-      const B = G.nodes[j];
-      cx.strokeStyle = "rgba(224,176,74,.5)"; cx.lineWidth = 7; cx.beginPath(); cx.moveTo(A.x, A.y); cx.lineTo(B.x, B.y); cx.stroke();
-      cx.setLineDash([4, 4]); cx.lineDashOffset = -t * 12; cx.strokeStyle = "#e0b04a"; cx.lineWidth = 2;
-      cx.beginPath(); cx.arc(B.x, B.y, NODE[B.type].r + 8, 0, Math.PI * 2); cx.stroke(); cx.setLineDash([]);
-    }
+  for (const [a, b] of G.map.e) {
+    const A = PN[a], B = PN[b];
+    cx.strokeStyle = "rgba(40,32,22,.45)"; cx.lineWidth = 9 * (A.s + B.s) / 2; cx.beginPath(); cx.moveTo(A.x, A.y); cx.lineTo(B.x, B.y); cx.stroke();
+    cx.strokeStyle = "rgba(196,170,120,.42)"; cx.lineWidth = 6 * (A.s + B.s) / 2; cx.beginPath(); cx.moveTo(A.x, A.y); cx.lineTo(B.x, B.y); cx.stroke();
   }
-
-  // links: solid faction band + chevrons flowing toward the target
+  // turret ranges
+  for (const n of G.nodes) if (n.type === "turret") {
+    const p = PN[n.id]; cx.strokeStyle = "rgba(255,226,160,.18)"; cx.fillStyle = "rgba(255,226,160,.04)"; cx.lineWidth = 1;
+    cx.beginPath(); cx.ellipse(p.x, p.y, CFG.turret.range * (0.86 + 0.14 * n.y / H), CFG.turret.range * PJ.ky, 0, 0, Math.PI * 2); cx.fill(); cx.stroke();
+  }
+  // selection on the ground
+  if (G.sel != null) {
+    const A = PN[G.sel];
+    for (const j of G.adj[G.sel]) {
+      const B = PN[j], hw = BLD[G.nodes[j].type].hw * 2 * B.s + 6;
+      cx.strokeStyle = "rgba(224,176,74,.45)"; cx.lineWidth = 8; cx.beginPath(); cx.moveTo(A.x, A.y); cx.lineTo(B.x, B.y); cx.stroke();
+      cx.setLineDash([4, 4]); cx.lineDashOffset = -t * 12; cx.strokeStyle = "#e0b04a"; cx.lineWidth = 2;
+      cx.beginPath(); cx.ellipse(B.x, B.y, hw, hw * .38, 0, 0, Math.PI * 2); cx.stroke(); cx.setLineDash([]);
+    }
+    const hw = BLD[G.nodes[G.sel].type].hw * 2 * A.s + 8 + Math.sin(t * 6) * 1.5;
+    cx.strokeStyle = "#e0b04a"; cx.lineWidth = 3; cx.beginPath(); cx.ellipse(A.x, A.y, hw, hw * .38, 0, 0, Math.PI * 2); cx.stroke();
+  }
+  if (G.inspect != null) {
+    const A = PN[G.inspect], hw = BLD[G.nodes[G.inspect].type].hw * 2 * A.s + 8;
+    cx.strokeStyle = "rgba(236,229,207,.8)"; cx.setLineDash([3, 4]); cx.lineWidth = 2; cx.beginPath(); cx.ellipse(A.x, A.y, hw, hw * .38, 0, 0, Math.PI * 2); cx.stroke(); cx.setLineDash([]);
+  }
+  // links: faction band + flowing chevrons
   for (const n of G.nodes) {
     if (n.link == null) continue;
-    const B = G.nodes[n.link];
-    const ang = Math.atan2(B.y - n.y, B.x - n.x), len = dist(n, B), ca = Math.cos(ang), sa = Math.sin(ang);
-    const r0 = NODE[n.type].r + 2, r1 = len - NODE[B.type].r - 2;
+    const A = PN[n.id], B = PN[n.link], len = Math.hypot(B.x - A.x, B.y - A.y), ca = (B.x - A.x) / len, sa = (B.y - A.y) / len;
+    const r0 = BLD[n.type].hw * 1.2 * A.s, r1 = len - BLD[G.nodes[n.link].type].hw * 1.2 * B.s;
+    if (r1 <= r0) continue;
     cx.strokeStyle = "rgba(10,14,12,.55)"; cx.lineWidth = n.owner === 1 ? 9 : 7;
-    cx.beginPath(); cx.moveTo(n.x + ca * r0, n.y + sa * r0); cx.lineTo(n.x + ca * r1, n.y + sa * r1); cx.stroke();
+    cx.beginPath(); cx.moveTo(A.x + ca * r0, A.y + sa * r0); cx.lineTo(A.x + ca * r1, A.y + sa * r1); cx.stroke();
     cx.strokeStyle = COLORS[n.owner]; cx.lineWidth = n.owner === 1 ? 6 : 4;
-    cx.beginPath(); cx.moveTo(n.x + ca * r0, n.y + sa * r0); cx.lineTo(n.x + ca * r1, n.y + sa * r1); cx.stroke();
+    cx.beginPath(); cx.moveTo(A.x + ca * r0, A.y + sa * r0); cx.lineTo(A.x + ca * r1, A.y + sa * r1); cx.stroke();
     const gap = 18, off = (t * 34) % gap;
     cx.strokeStyle = "rgba(255,255,255,.95)"; cx.lineWidth = 2.2;
     for (let d = r0 + off; d < r1 - 3; d += gap) {
-      const px = n.x + ca * d, py = n.y + sa * d, s = 4.6;
-      cx.beginPath();
-      cx.moveTo(px - ca * s + sa * s, py - sa * s - ca * s); cx.lineTo(px, py); cx.lineTo(px - ca * s - sa * s, py - sa * s + ca * s);
-      cx.stroke();
+      const px = A.x + ca * d, py = A.y + sa * d, k = 4.6;
+      cx.beginPath(); cx.moveTo(px - ca * k + sa * k, py - sa * k - ca * k); cx.lineTo(px, py); cx.lineTo(px - ca * k - sa * k, py - sa * k + ca * k); cx.stroke();
     }
   }
-  // rejected link attempt (loop)
   if (G.shake) {
-    const A = G.nodes[G.shake.from], B = G.nodes[G.shake.to], j = Math.sin(G.shake.t * 60) * 3;
+    const A = PN[G.shake.from], B = PN[G.shake.to], j = Math.sin(G.shake.t * 60) * 3;
     cx.strokeStyle = "#ff6b5a"; cx.lineWidth = 3; cx.setLineDash([5, 5]);
     cx.beginPath(); cx.moveTo(A.x + j, A.y); cx.lineTo(B.x + j, B.y); cx.stroke(); cx.setLineDash([]);
   }
-  // cut animation: the two halves spring apart and fade
   for (const c of G.cuts) {
-    const A = G.nodes[c.a], B = G.nodes[c.b], k = 1 - c.t / .45, mx = (A.x + B.x) / 2, my = (A.y + B.y) / 2;
+    const A = PN[c.a], B = PN[c.b], k = 1 - c.t / .45, mx = (A.x + B.x) / 2, my = (A.y + B.y) / 2;
     cx.globalAlpha = c.t / .45; cx.strokeStyle = COLORS[1]; cx.lineWidth = 5;
     cx.beginPath(); cx.moveTo(A.x, A.y); cx.lineTo(mx + (A.x - mx) * k * .6, my + (A.y - my) * k * .6); cx.stroke();
     cx.beginPath(); cx.moveTo(B.x, B.y); cx.lineTo(mx + (B.x - mx) * k * .6, my + (B.y - my) * k * .6); cx.stroke();
-    cx.fillStyle = "#fff"; cx.font = "16px 'Do Hyeon', sans-serif"; cx.textAlign = "center"; cx.fillText("✕", mx, my - 8 - k * 6);
+    cx.fillStyle = "#fff"; cx.font = "16px 'Do Hyeon', sans-serif"; cx.textAlign = "center"; cx.textBaseline = "middle"; cx.fillText("✕", mx, my - 8 - k * 6);
     cx.globalAlpha = 1;
   }
 
-  // turret ranges (subtle)
-  for (const n of G.nodes) if (n.type === "turret") { cx.fillStyle = "rgba(255,226,160,.05)"; cx.beginPath(); cx.arc(n.x, n.y, CFG.turret.range, 0, Math.PI * 2); cx.fill(); }
+  // depth-sorted objects: scenery, buildings (+ standing guards), marching troops, falling bodies
+  const items = [], tops = [];
+  for (const d of G.deco) { const p = P(d.x, d.y); items.push({ y: p.y, f: () => drawDeco(d, p) }); }
+  for (const n of G.nodes) {
+    const p = PN[n.id];
+    items.push({ y: p.y, f: () => { tops[n.id] = drawBuilding(n, p); } });
+    const tp = troops(n);
+    if (tp > 0 && n.owner !== 0) {
+      const major = TYPES.slice().sort((a, b) => n.g[b] - n.g[a])[0];
+      const gx = p.x + (BLD[n.type].hw * 2 + 4) * p.s;
+      items.push({ y: p.y + 4, f: () => drawSprite(major, n.owner, gx, p.y + 4 * p.s, p.s, true, 0) });
+    } else if (tp > 0) {
+      const gx = p.x + (BLD[n.type].hw * 2 + 4) * p.s;
+      items.push({ y: p.y + 4, f: () => drawSprite("melee", 0, gx, p.y + 4 * p.s, p.s, true, 0) });
+    }
+    if (heroAt(n)) {
+      const hx = p.x - (BLD[n.type].hw * 2 + 6) * p.s;
+      items.push({ y: p.y + 5, f: () => drawSprite("hero", 1, hx, p.y + 5 * p.s - Math.abs(Math.sin(t * 3)) * 1.2, p.s, false, 0) });
+    }
+  }
+  for (const u of G.units) {
+    const w = unitPos(u), p = P(w.x, w.y), A = G.nodes[u.from], B = G.nodes[u.to];
+    const flip = P(B.x, B.y).x < P(A.x, A.y).x, frame = Math.floor((u.d + u.ph) / 7) % 2, bob = frame ? 0 : -0.8;
+    items.push({ y: p.y, f: () => drawSprite(u.type, u.owner, p.x, p.y + bob, p.s, flip, frame) });
+  }
+  for (const f of G.fx) if (f.k === "fall") {
+    const p = P(f.x, f.y), k = 1 - f.t / .6;
+    items.push({ y: p.y, f: () => drawSprite(f.type, f.owner, p.x, p.y, p.s, f.flip, 0, (f.flip ? -1 : 1) * Math.min(1, k * 2.5) * Math.PI / 2, Math.min(1, f.t / .3)) });
+  }
+  items.sort((a, b) => a.y - b.y).forEach(i => i.f());
 
-  // nodes
+  // projectiles
+  for (const sh of G.shots) {
+    const a = P(sh.x1, sh.y1), b = P(sh.x2, sh.y2), k = 1 - sh.t / .18, ah = (sh.h || 10) * a.s;
+    const x = a.x + (b.x - a.x) * k, y = (a.y - ah) + (b.y - 8 * b.s - (a.y - ah)) * k - Math.sin(k * Math.PI) * 10;
+    const ang = Math.atan2((b.y - a.y), (b.x - a.x));
+    cx.save(); cx.translate(x, y); cx.rotate(ang);
+    cx.fillStyle = sh.k === "bolt" ? "#ffe2a0" : "#f3ead2"; cx.fillRect(-4, -.6, 8, 1.2); cx.fillRect(2, -1.4, 2, 2.8);
+    cx.restore();
+  }
+  for (const f of G.fx) if (f.k === "spark") {
+    const p = P(f.x, f.y), k = f.t / .28, r = (1 - k) * 9 + 3;
+    cx.strokeStyle = `rgba(255,236,170,${k})`; cx.lineWidth = 2;
+    for (let i = 0; i < 4; i++) { const a = i * Math.PI / 2 + .4; cx.beginPath(); cx.moveTo(p.x + Math.cos(a) * r * .3, p.y - 8 + Math.sin(a) * r * .3); cx.lineTo(p.x + Math.cos(a) * r, p.y - 8 + Math.sin(a) * r); cx.stroke(); }
+  }
+
+  // labels on top: count badge, composition, production, level pips
   cx.textAlign = "center"; cx.textBaseline = "middle";
   for (const n of G.nodes) {
-    const def = NODE[n.type], r = def.r + (n.flash > 0 ? 2 : 0);
-    if (G.sel === n.id) { cx.strokeStyle = "#e0b04a"; cx.lineWidth = 3; cx.beginPath(); cx.arc(n.x, n.y, r + 9 + Math.sin(t * 6) * 1.5, 0, Math.PI * 2); cx.stroke(); }
-    shape(n, r + 3); cx.fillStyle = "rgba(0,0,0,.35)"; cx.fill();
-    shape(n, r); cx.fillStyle = COLORS[n.owner]; cx.fill();
-    cx.lineWidth = 2; cx.strokeStyle = "rgba(20,24,22,.7)"; cx.stroke();
-    if (n.type === "base") { cx.beginPath(); cx.arc(n.x, n.y, r - 5, 0, Math.PI * 2); cx.strokeStyle = "rgba(255,255,255,.35)"; cx.lineWidth = 1.5; cx.stroke(); }
-    const tot = n.g.melee + n.g.ranged;
-    cx.fillStyle = "#fff"; cx.font = `${n.type === "turret" ? 12 : 15}px 'Do Hyeon', sans-serif`;
-    cx.fillText(String(tot), n.x, n.y + (n.type === "turret" ? 4 : 1));
-    // composition bar
-    if (tot > 0) {
-      const bw = 26, mw = bw * n.g.melee / tot;
-      cx.fillStyle = "rgba(0,0,0,.5)"; cx.fillRect(n.x - bw / 2 - 1, n.y + r + 4, bw + 2, 5);
-      cx.fillStyle = "#ece5cf"; cx.fillRect(n.x - bw / 2, n.y + r + 5, mw, 3);
-      cx.fillStyle = "#8fd0e6"; cx.fillRect(n.x - bw / 2 + mw, n.y + r + 5, bw - mw, 3);
+    const p = PN[n.id], top = (tops[n.id] ?? p.y - 30) - 7, tp = troops(n);
+    const txt = String(tp), bw = 12 + txt.length * 7, bh = 15;
+    cx.fillStyle = "rgba(16,20,18,.85)"; cx.beginPath(); cx.roundRect(p.x - bw / 2, top - bh / 2, bw, bh, 7); cx.fill();
+    cx.strokeStyle = TEAM(n.owner); cx.lineWidth = 2; cx.stroke();
+    cx.fillStyle = "#fff"; cx.font = "13px 'Do Hyeon', sans-serif"; cx.fillText(txt, p.x, top + 1);
+    if (tp > 0) {
+      let x0 = p.x - 13; const segs = [["tank", "#9fb0bb"], ["melee", "#ece5cf"], ["ranged", "#8fd0e6"]];
+      for (const [k, c] of segs) { const w = 26 * n.g[k] / tp; if (w > 0) { cx.fillStyle = c; cx.fillRect(x0, top + 9, w, 2.5); x0 += w; } }
     }
-    // badges
     if (n.type === "base" && n.owner !== 0) {
-      cx.fillStyle = n.prod === "melee" ? "#ece5cf" : "#8fd0e6"; cx.beginPath(); cx.arc(n.x + r - 2, n.y - r + 2, 7, 0, Math.PI * 2); cx.fill();
-      cx.fillStyle = "#1a201d"; cx.font = "10px 'Do Hyeon', sans-serif"; cx.fillText(n.prod === "melee" ? "근" : "원", n.x + r - 2, n.y - r + 3);
+      const bx = p.x + bw / 2 + 7;
+      cx.fillStyle = { tank: "#9fb0bb", melee: "#ece5cf", ranged: "#8fd0e6" }[n.prod]; cx.beginPath(); cx.arc(bx, top, 6.5, 0, Math.PI * 2); cx.fill();
+      cx.fillStyle = "#1a201d"; cx.font = "9px 'Do Hyeon', sans-serif"; cx.fillText({ tank: "탱", melee: "근", ranged: "원" }[n.prod], bx, top + .5);
     }
-    if (n.type === "turret") { for (let i = 0; i < 3; i++) { cx.fillStyle = i < n.lvl ? "#ffe2a0" : "rgba(255,255,255,.2)"; cx.fillRect(n.x - 9 + i * 7, n.y - r - 9, 5, 4); } }
-    if (n.type === "gate") { cx.fillStyle = "rgba(255,255,255,.8)"; cx.font = "9px 'Gowun Dodum', sans-serif"; cx.fillText(`최소 ${CFG.gateHold}`, n.x, n.y - r - 6); }
-    if (n.type === "fort") { cx.fillStyle = "rgba(255,255,255,.7)"; cx.font = "9px 'Gowun Dodum', sans-serif"; cx.fillText("방어+1", n.x, n.y - r - 7); }
-    if (heroAt(n)) { cx.strokeStyle = "#e0b04a"; cx.lineWidth = 3; cx.beginPath(); cx.arc(n.x, n.y, r + 6, -Math.PI * .9, -Math.PI * .1); cx.stroke(); cx.fillStyle = "#e0b04a"; star(n.x, n.y - r - 9, 6); }
+    if (n.type === "turret") for (let i = 0; i < 3; i++) { cx.fillStyle = i < n.lvl ? "#ffe2a0" : "rgba(255,255,255,.2)"; cx.fillRect(p.x - 9 + i * 7, top - 13, 5, 3); }
+    if (n.type === "gate") { cx.fillStyle = "rgba(255,255,255,.75)"; cx.font = "9px 'Gowun Dodum', sans-serif"; cx.fillText(`최소 ${CFG.gateHold}`, p.x, top - 13); }
   }
-
-  // units
-  for (const u of G.units) {
-    const p = unitPos(u);
-    cx.fillStyle = COLORS[u.owner];
-    if (u.type === "hero") { cx.fillStyle = "#e0b04a"; star(p.x, p.y, 8); cx.strokeStyle = COLORS[1]; cx.lineWidth = 1.5; cx.beginPath(); cx.arc(p.x, p.y, 9, 0, Math.PI * 2); cx.stroke(); }
-    else {
-      if (u.type === "ranged") { cx.beginPath(); cx.moveTo(p.x, p.y - 4.5); cx.lineTo(p.x + 4.5, p.y); cx.lineTo(p.x, p.y + 4.5); cx.lineTo(p.x - 4.5, p.y); cx.closePath(); }
-      else { cx.beginPath(); cx.arc(p.x, p.y, 3.8, 0, Math.PI * 2); }
-      cx.fill(); cx.strokeStyle = "rgba(10,14,12,.85)"; cx.lineWidth = 1.3; cx.stroke();
-    }
-  }
-  for (const sh of G.shots) { cx.strokeStyle = sh.c; cx.globalAlpha = sh.t / .12; cx.lineWidth = 1.2; cx.beginPath(); cx.moveTo(sh.x1, sh.y1); cx.lineTo(sh.x2, sh.y2); cx.stroke(); }
-  cx.globalAlpha = 1;
-  for (const p of G.puffs) { cx.fillStyle = p.c; cx.globalAlpha = Math.max(0, p.t / .35); cx.beginPath(); cx.arc(p.x, p.y, 2, 0, Math.PI * 2); cx.fill(); }
-  cx.globalAlpha = 1;
   if (G.skillT > 0) { cx.fillStyle = "rgba(224,176,74,.06)"; cx.fillRect(0, 0, W, H); }
 }
-function star(x, y, r) { cx.beginPath(); for (let i = 0; i < 10; i++) { const a = -Math.PI / 2 + i * Math.PI / 5, rr = i % 2 ? r * .45 : r; cx.lineTo(x + Math.cos(a) * rr, y + Math.sin(a) * rr); } cx.closePath(); cx.fill(); }
 
 /* HUD */
 function hud() {
@@ -859,7 +1045,7 @@ function hud() {
   $("power").innerHTML = pw.map((v, i) => `<span style="width:${v / sum * 100}%;background:${COLORS[i + 1]}"></span>`).join("");
   const h = G.hero;
   $("herohp").style.width = `${Math.max(0, h.hp) / CFG.unit.hero.hp * 100}%`;
-  $("herostate").textContent = h.state === "dead" ? `전사 · ${Math.ceil(h.respawn)}초 후 베이스에서 부활` : h.state === "moving" ? "이동 중" : `${NODE[G.nodes[h.node].type].name} 주둔 중 · 선을 이으면 함께 출격`;
+  $("herostate").textContent = h.state === "dead" ? `전사 · ${Math.ceil(h.respawn)}초 후 베이스에서 부활` : h.state === "moving" ? "이동 중" : `${NODE[G.nodes[h.node].type].name} 주둔 중`;
   $("skill").disabled = G.skillCd > 0;
   $("skillcd").style.height = `${Math.max(0, G.skillCd) / CFG.skill.cd * 100}%`;
 }
@@ -867,25 +1053,33 @@ function hud() {
 function loop(now) {
   if (!G) return;
   const dt = Math.min(.05, (now - last) / 1000); last = now;
-  if (!G.over) { const sub = speed; for (let i = 0; i < sub; i++) step(dt); }
+  if (!G.over) { for (let i = 0; i < speed; i++) step(dt); }
   draw(); hud(); renderPanel();
   raf = requestAnimationFrame(loop);
 }
 
 /* =========================================================
-   Input
+   Input — tap a building to select, tap a neighbour to link, tap a link to cut
    ========================================================= */
-function toWorld(e) { const r = cv.getBoundingClientRect(); return { x: (e.clientX - r.left - view.ox) / view.s, y: (e.clientY - r.top - view.oy) / view.s }; }
-function nodeAt(p) { let best = null, bd = 28; for (const n of G.nodes) { const d = Math.hypot(n.x - p.x, n.y - p.y); if (d < bd) { bd = d; best = n; } } return best; }
+function toBoard(e) { const r = cv.getBoundingClientRect(); return { x: (e.clientX - r.left - view.ox) / view.s, y: (e.clientY - r.top - view.oy) / view.s }; }
+function screenOf(x, y) { const r = cv.getBoundingClientRect(), p = P(x, y); return { x: r.left + view.ox + p.x * view.s, y: r.top + view.oy + (p.y - 8 * p.s) * view.s }; }
+function nodeAt(q) {
+  let best = null, bd = Infinity;
+  for (const n of G.nodes) {
+    const p = P(n.x, n.y), b = BLD[n.type], cy = p.y + b.top * p.s;     // centre of the building body
+    const dx = (q.x - p.x) / ((b.hw * 2 + 8) * p.s), dy = (q.y - cy) / ((-b.top + 10) * p.s);
+    const d = dx * dx + dy * dy; if (d < 1 && d < bd) { bd = d; best = n; }
+  }
+  return best;
+}
 function segDist(p, a, b) { const dx = b.x - a.x, dy = b.y - a.y, l = dx * dx + dy * dy; let k = ((p.x - a.x) * dx + (p.y - a.y) * dy) / l; k = Math.max(0, Math.min(1, k)); return Math.hypot(p.x - a.x - dx * k, p.y - a.y - dy * k); }
-/* own link whose middle stretch was tapped (node ends belong to the nodes) */
-function linkAt(p) {
+function linkAt(q) {
   let best = null, bd = 14;
   for (const n of G.nodes) {
     if (n.owner !== 1 || n.link == null) continue;
-    const B = G.nodes[n.link];
-    if (dist(p, n) < NODE[n.type].r + 8 || dist(p, B) < NODE[B.type].r + 8) continue;
-    const d = segDist(p, n, B); if (d < bd) { bd = d; best = n; }
+    const A = P(n.x, n.y), B = P(G.nodes[n.link].x, G.nodes[n.link].y);
+    if (Math.hypot(q.x - A.x, q.y - A.y) < 20 || Math.hypot(q.x - B.x, q.y - B.y) < 20) continue;
+    const d = segDist(q, A, B); if (d < bd) { bd = d; best = n; }
   }
   return best;
 }
@@ -893,12 +1087,12 @@ function cutLink(n) { G.cuts.push({ a: n.id, b: n.link, t: .45 }); n.link = null
 /* create link s -> t with loop rules */
 function tryLink(s, t) {
   if (s.link === t.id) return "same";
-  if (t.owner === s.owner && t.link === s.id) {           // reverse of an existing link: flip direction
+  if (t.owner === s.owner && t.link === s.id) {
     G.cuts.push({ a: t.id, b: s.id, t: .45 }); t.link = null; s.link = t.id; s.sendT = 0;
     if (s.owner === 1) showToast("방향을 바꿨습니다.", 1.6);
     return "flip";
   }
-  let cur = t, steps = 0;                                 // longer loop: follow own links from target
+  let cur = t, steps = 0;
   while (cur.owner === s.owner && cur.link != null && steps++ < 60) {
     const nx = G.nodes[cur.link];
     if (nx.id === s.id) {
@@ -911,63 +1105,79 @@ function tryLink(s, t) {
   s.link = t.id; s.sendT = 0;
   return "ok";
 }
-function handleTap(p) {
-  const n = nodeAt(p);
+function handleTap(q) {
+  const n = nodeAt(q);
   if (n) {
     if (G.sel != null) {
       const s = G.nodes[G.sel];
       if (n.id === s.id) { G.sel = null; return; }
       if (G.adj[s.id].includes(n.id)) { tryLink(s, n); G.sel = null; return; }
     }
-    if (n.owner === 1) { G.sel = n.id; return; }
-    showToast(G.sel != null ? "선으로 바로 이어진 거점만 고를 수 있습니다." : "먼저 내 거점(파란색)을 탭해 선택하세요.", 2);
+    if (n.owner === 1) { G.sel = n.id; G.inspect = null; return; }
+    G.sel = null; G.inspect = n.id;          // enemy / neutral: show its info
     return;
   }
-  const l = linkAt(p);
+  const l = linkAt(q);
   if (l) { cutLink(l); if (G.sel === l.id) G.sel = null; return; }
-  G.sel = null;
+  G.sel = null; G.inspect = null;
 }
 let press = null;
-cv.addEventListener("pointerdown", e => { if (!G || G.over) return; press = { ...toWorld(e), id: e.pointerId }; });
+cv.addEventListener("pointerdown", e => { if (!G || G.over) return; press = { ...toBoard(e), id: e.pointerId }; });
 cv.addEventListener("pointerup", e => {
   if (!G || G.over || !press || press.id !== e.pointerId) return;
-  const p = toWorld(e), moved = Math.hypot(p.x - press.x, p.y - press.y); press = null;
-  if (moved < 14) handleTap(p);
+  const q = toBoard(e), moved = Math.hypot(q.x - press.x, q.y - press.y); press = null;
+  if (moved < 14) handleTap(q);
 });
 cv.addEventListener("pointercancel", () => { press = null; });
 
 /* node panel (bottom) */
-const TYPE_LABEL = { melee: "근거리", ranged: "원거리" };
-const TYPE_DOT = { melee: "#ece5cf", ranged: "#8fd0e6" };
+const TYPE_LABEL = { tank: "탱커", melee: "근거리", ranged: "원거리" };
+const TYPE_DOT = { tank: "#9fb0bb", melee: "#ece5cf", ranged: "#8fd0e6" };
 function panelKey() {
-  if (!G || G.sel == null) return "none";
-  const n = G.nodes[G.sel];
-  return [n.id, n.link, n.prod, n.send.melee, n.send.ranged, n.sendHero, heroAt(n)].join("|");
+  if (!G) return "none";
+  if (G.sel != null) { const n = G.nodes[G.sel]; return ["s", n.id, n.link, n.prod, n.send.tank, n.send.melee, n.send.ranged, n.sendHero, heroAt(n)].join("|"); }
+  if (G.inspect != null) { const n = G.nodes[G.inspect]; return ["i", n.id, n.owner, n.g.tank, n.g.melee, n.g.ranged, forts(1), G.skillT > 0].join("|"); }
+  return "none";
 }
 function garText(n) {
-  const parts = [`근거리 ${n.g.melee}`, `원거리 ${n.g.ranged}`];
+  const parts = TYPES.filter(k => n.g[k] > 0).map(k => `${TYPE_LABEL[k]} ${n.g[k]}`);
   if (heroAt(n)) parts.push("영웅 레오");
-  return parts.join(" · ");
+  return parts.join(" · ") || "비어 있음";
+}
+function defText(n) {
+  const extra = NODE[n.type].def, f = forts(n.owner);
+  let s = `방어 +${extra + f}`;
+  if (f) s += ` (요새 +${f})`;
+  return s;
 }
 function renderPanel() {
   const el = $("npanel"), key = panelKey();
-  if (key === G.panelKey) { const g = $("pgar"); if (g) g.textContent = garText(G.nodes[G.sel]); return; }
+  if (key === G.panelKey) { const g = $("pgar"); if (g && G.sel != null) g.textContent = garText(G.nodes[G.sel]); return; }
   G.panelKey = key;
-  if (G.sel == null) {
-    el.innerHTML = `<p class="hint"><b>① 내 거점 탭</b> → <b>② 이웃 거점 탭</b>하면 병력이 계속 이동합니다.<br><b>선을 탭</b>하면 끊깁니다. 반대 방향으로 이으면 방향이 바뀝니다.</p>`;
+  if (key === "none") {
+    el.innerHTML = `<p class="hint"><b>① 내 거점 탭</b> → <b>② 이웃 거점 탭</b>하면 병력이 계속 이동합니다.<br><b>선을 탭</b>하면 끊깁니다. 적이나 중립 거점을 탭하면 점령에 필요한 병력이 보입니다.<br>상성: 탱커 › 근거리 › 원거리 › 탱커</p>`;
     return;
   }
-  const n = G.nodes[G.sel];
   const pill = (attr, val, on, label, dot) => `<button class="pill" ${attr}="${val}" aria-pressed="${on}">${dot ? `<span class="dot" style="background:${dot}"></span>` : ""}${label}</button>`;
-  let h = `<div class="prow"><span class="nm">${NODE[n.type].name}</span><span class="gar" id="pgar">${garText(n)}</span></div>`;
+  if (G.inspect != null) {
+    const n = G.nodes[G.inspect];
+    let h = `<div class="prow"><span class="nm" style="color:${TEAM(n.owner)}">${FACTION[n.owner]} ${NODE[n.type].name}</span><span class="gar">${garText(n)}</span></div>`;
+    h += `<div class="prow"><span class="k">방어</span>${defText(n)}${n.type === "turret" ? ` · 포탑 Lv${n.lvl}: 지나가는 적에게 ${n.lvl} 피해` : ""}${n.type === "gate" ? " · 주인은 최소 인원을 남김" : ""}</div>`;
+    const e1 = estimate(n, "melee", false), e2 = estimate(n, "melee", true), e3 = estimate(n, "tank", false);
+    h += `<div class="prow"><span class="k">예상</span>근거리 약 ${e1}명 · 돌격 함성 중 ${e2}명 · 탱커 ${e3}명</div>`;
+    h += `<div class="prow"><span class="k"></span><small style="color:var(--ink-dim)">포탑 사격과 수비 원거리 사격은 빼고 계산한 값입니다.</small></div>`;
+    el.innerHTML = h; return;
+  }
+  const n = G.nodes[G.sel];
+  let h = `<div class="prow"><span class="nm">${NODE[n.type].name}</span><span class="gar" id="pgar">${garText(n)}</span><span class="gar">· ${defText(n)}</span></div>`;
   if (n.type === "base") {
     h += `<div class="prow"><span class="k">생산</span>` +
-      ["melee", "ranged"].map(k => pill("data-prod", k, n.prod === k, `${TYPE_LABEL[k]} <small>${(CFG.cost[k] / (CFG.resPerMin / 60)).toFixed(1)}초마다 1명</small>`, TYPE_DOT[k])).join("") + `</div>`;
+      TYPES.map(k => pill("data-prod", k, n.prod === k, `${TYPE_LABEL[k]} <small>${(CFG.cost[k] / (CFG.resPerMin / 60)).toFixed(1)}초</small>`, TYPE_DOT[k])).join("") + `</div>`;
   }
   h += `<div class="prow"><span class="k">출격</span>` +
-    ["melee", "ranged"].map(k => pill("data-send", k, n.send[k], TYPE_LABEL[k], TYPE_DOT[k])).join("") +
+    TYPES.map(k => pill("data-send", k, n.send[k], TYPE_LABEL[k], TYPE_DOT[k])).join("") +
     (heroAt(n) ? pill("data-send", "hero", n.sendHero, "영웅", "#e0b04a") : "") + `</div>`;
-  if (n.link != null) h += `<div class="prow"><span class="k">연결</span>→ ${NODE[G.nodes[n.link].type].name} <button class="pill cut" data-cut="1">끊기</button>${n.type === "gate" ? `<small style="color:var(--ink-dim)">최소 ${CFG.gateHold}명 남음</small>` : ""}</div>`;
+  if (n.link != null) h += `<div class="prow"><span class="k">연결</span>→ ${FACTION[G.nodes[n.link].owner]} ${NODE[G.nodes[n.link].type].name} <button class="pill cut" data-cut="1">끊기</button>${n.type === "gate" ? `<small style="color:var(--ink-dim)">최소 ${CFG.gateHold}명 남음</small>` : ""}</div>`;
   else h += `<div class="prow"><span class="k">연결</span><span style="color:var(--ink-dim)">금색 테두리 거점을 탭하면 연결</span></div>`;
   el.innerHTML = h;
 }
@@ -989,6 +1199,8 @@ function showToast(html, sec = 6) { const t = $("toast"); t.innerHTML = html; t.
 /* tuning sheet */
 const SLIDERS = [
   ["자원(분당)", () => CFG.resPerMin, v => CFG.resPerMin = v, 20, 180, 5],
+  ["탱커 체력", () => CFG.unit.tank.hp, v => CFG.unit.tank.hp = v, 8, 50, 1],
+  ["탱커 비용", () => CFG.cost.tank, v => CFG.cost.tank = v, .5, 4, .25],
   ["근거리 공격", () => CFG.unit.melee.atk, v => CFG.unit.melee.atk = v, 1, 10, 1],
   ["근거리 방어", () => CFG.unit.melee.def, v => CFG.unit.melee.def = v, 0, 5, 1],
   ["근거리 체력", () => CFG.unit.melee.hp, v => CFG.unit.melee.hp = v, 4, 30, 1],
@@ -996,7 +1208,7 @@ const SLIDERS = [
   ["원거리 체력", () => CFG.unit.ranged.hp, v => CFG.unit.ranged.hp = v, 2, 20, 1],
   ["원거리 사거리", () => CFG.unit.ranged.range, v => CFG.unit.ranged.range = v, 30, 120, 2],
   ["원거리 비용", () => CFG.cost.ranged, v => CFG.cost.ranged = v, .5, 4, .25],
-  ["이동 속도", () => CFG.unit.melee.spd, v => { const k = v / CFG.unit.melee.spd; CFG.unit.melee.spd = v; CFG.unit.ranged.spd *= k; CFG.unit.hero.spd *= k; }, 20, 100, 2],
+  ["이동 속도", () => CFG.unit.melee.spd, v => { const k = v / CFG.unit.melee.spd; CFG.unit.melee.spd = v; CFG.unit.ranged.spd *= k; CFG.unit.tank.spd *= k; CFG.unit.hero.spd *= k; }, 20, 100, 2],
   ["관문 최소 인원", () => CFG.gateHold, v => CFG.gateHold = v, 0, 10, 1]
 ];
 function buildSliders() {
@@ -1005,7 +1217,7 @@ function buildSliders() {
     const row = document.createElement("label"); row.className = "row";
     row.innerHTML = `<span>${label}</span><input type="range" id="sl${i}" min="${min}" max="${max}" step="${st}" value="${get()}"><output>${get()}</output>`;
     const inp = row.querySelector("input"), out = row.querySelector("output");
-    inp.oninput = () => { set(Number(inp.value)); out.textContent = inp.value; };
+    inp.oninput = () => { set(Number(inp.value)); out.textContent = inp.value; G && (G.panelKey = ""); };
     $("sliders").appendChild(row);
   });
 }
